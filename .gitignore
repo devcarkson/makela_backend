@@ -102,6 +102,7 @@ logs/
 # Deployment artifacts
 home/
 debug_views.py
+*.zip
 
 # SQLite
 *.sqlite3
