@@ -112,15 +112,18 @@ CORS_ALLOW_HEADERS = [
     'accept',
     'accept-encoding',
     'authorization',
+    'cache-control',
     'content-type',
     'dnt',
     'origin',
+    'pragma',
     'user-agent',
     'x-csrftoken',
     'x-requested-with',
 ]
 
 MIDDLEWARE = [
+    'django.middleware.cache.UpdateCacheMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
@@ -130,7 +133,6 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
-    'django.middleware.cache.UpdateCacheMiddleware',
     'django.middleware.cache.FetchFromCacheMiddleware',
 ]
 
@@ -308,6 +310,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://172.20.10.2:8081",
     "https://makelacosmetic.uk",
     "https://sgb-h5g8.onrender.com",
+    "https://carkson.nezismedicalltd.com",
 ]
 
 # For absolute URLs in serializers

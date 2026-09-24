@@ -11,7 +11,7 @@ from .serializers import (
     CheckoutSerializer
 )
 from products.models import Product
-from payments.realtime import broadcast_realtime_update
+from payments.realtime import broadcast_realtime_update, broadcast_realtime_update_safe
 from .serializers import CartSerializer
 
 class CartDetailView(generics.RetrieveAPIView):
@@ -49,7 +49,7 @@ class CartItemCreateView(generics.CreateAPIView):
         
         # Return the created/updated cart item
         # Broadcast cart update
-        broadcast_realtime_update(
+        broadcast_realtime_update_safe(
             user_id=str(self.request.user.id),
             data={
                 "type": "cart_update",
@@ -86,7 +86,7 @@ class CartItemDetailView(generics.RetrieveUpdateDestroyAPIView):
         instance.delete()
         # Broadcast cart update after removal
         cart = Cart.get_or_create_cart(self.request.user)
-        broadcast_realtime_update(
+        broadcast_realtime_update_safe(
             user_id=str(self.request.user.id),
             data={
                 "type": "cart_update",
@@ -142,7 +142,7 @@ class CartItemBulkUpdateView(APIView):
             status=status.HTTP_200_OK
         )
         # Broadcast cart update after bulk changes
-        broadcast_realtime_update(
+        broadcast_realtime_update_safe(
             user_id=str(request.user.id),
             data={
                 "type": "cart_update",
@@ -194,9 +194,8 @@ class CheckoutView(generics.CreateAPIView):
         try:
             order = serializer.save()
             try:
-                from payments.realtime import broadcast_realtime_update
                 from .serializers import OrderSerializer
-                broadcast_realtime_update(
+                broadcast_realtime_update_safe(
                     user_id=str(order.user.id),
                     data={
                         "type": "order_update",
@@ -299,7 +298,7 @@ class ClearCartView(APIView):
             status=status.HTTP_200_OK
         )
         # Broadcast cart update after clear
-        broadcast_realtime_update(
+        broadcast_realtime_update_safe(
             user_id=str(request.user.id),
             data={
                 "type": "cart_update",

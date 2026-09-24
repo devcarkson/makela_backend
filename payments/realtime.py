@@ -7,6 +7,8 @@ def broadcast_realtime_update(user_id, data):
     Example: data = {'type': 'cart_update', ...}
     """
     channel_layer = get_channel_layer()
+    if channel_layer is None:
+        return
     async_to_sync(channel_layer.group_send)(
         f'user_{user_id}',
         {
@@ -14,3 +16,13 @@ def broadcast_realtime_update(user_id, data):
             'data': data,
         }
     )
+
+def broadcast_realtime_update_safe(user_id, data):
+    """
+    Same as broadcast_realtime_update but swallows exceptions so it can be
+    called from model save() / signals without breaking the request.
+    """
+    try:
+        broadcast_realtime_update(user_id, data)
+    except Exception:
+        pass
