@@ -67,7 +67,15 @@ CLOUDINARY_STORAGE = {
     'MEDIA_TAG': 'media',
 }
 
-DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+# Django 5.2+ STORAGES configuration
+STORAGES = {
+    'default': {
+        'BACKEND': 'cloudinary_storage.storage.MediaCloudinaryStorage',
+    },
+    'staticfiles': {
+        'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
+    },
+}
 
 # Thumbnail settings
 THUMBNAIL_ENGINE = 'sorl.thumbnail.engines.pil_engine.Engine'
@@ -94,7 +102,7 @@ CACHE_MIDDLEWARE_SECONDS = 300  # 5 minutes
 CACHE_MIDDLEWARE_KEY_PREFIX = 'sgb'
 
 # Static files caching
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+# (Static files storage is configured in STORAGES setting above)
 
 # Media files optimization
 FILE_UPLOAD_MAX_MEMORY_SIZE = 5242880  # 5MB
@@ -269,8 +277,6 @@ STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'static'),
     
 ]
-
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 
 
