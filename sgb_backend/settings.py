@@ -155,6 +155,26 @@ CORS_ALLOW_HEADERS = [
     'x-requested-with',
 ]
 
+# Jazzmin admin customization
+JAZZMIN_SETTINGS = {
+    "hide_apps": [
+        "authtoken",
+        "auth",
+        "django_rest_passwordreset",
+        "token_blacklist",
+    ],
+    "hide_models": [],
+}
+
+# Jazzmin icons
+JAZZMIN_ICONS = {
+    "auth": "fas fa-user-shield",
+    "accounts": "fas fa-user",
+    "products": "fas fa-box",
+    "orders": "fas fa-shopping-cart",
+    "payments": "fas fa-credit-card",
+}
+
 MIDDLEWARE = [
     'django.middleware.cache.UpdateCacheMiddleware',
     'django.middleware.security.SecurityMiddleware',
