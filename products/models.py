@@ -1,23 +1,15 @@
 from django.db import models
 from django.utils.text import slugify
 from django.conf import settings
-from imagekit.models import ImageSpecField, ProcessedImageField
-from imagekit.processors import ResizeToFill, ResizeToFit
 from PIL import Image
 from .utils import compress_image_on_upload
+from cloudinary.models import CloudinaryField
 
 class Category(models.Model):
     name = models.CharField(max_length=100, unique=True)
     slug = models.SlugField(max_length=100, unique=True)
-    image = models.ImageField(upload_to='categories/', blank=True, null=True)  # Keep original ImageField
+    image = CloudinaryField('image', folder='categories', blank=True, null=True)
     
-    # Thumbnail for category cards
-    thumbnail = ImageSpecField(
-        source='image',
-        processors=[ResizeToFill(150, 150)],
-        format='JPEG',
-        options={'quality': 80}
-    )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -28,6 +20,14 @@ class Category(models.Model):
 
     def __str__(self):
         return self.name
+
+    def get_thumbnail_url(self):
+        if self.image:
+            return self.image.build_url(
+                width=150, height=150, crop='fill',
+                format='webp', quality='auto'
+            )
+        return None
 
     def save(self, *args, **kwargs):
         if not self.slug:
@@ -73,27 +73,8 @@ class Product(models.Model):
 
 class ProductImage(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='images')
-    image = models.ImageField(upload_to='products/')  # Keep original ImageField for compatibility
+    image = CloudinaryField('image', folder='products')  # Upload to Cloudinary 'products/' folder
     
-    # Different sized thumbnails for different use cases
-    thumbnail_small = ImageSpecField(
-        source='image',
-        processors=[ResizeToFill(150, 150)],
-        format='JPEG',
-        options={'quality': 80}
-    )
-    thumbnail_medium = ImageSpecField(
-        source='image',
-        processors=[ResizeToFill(300, 300)],
-        format='JPEG',
-        options={'quality': 85}
-    )
-    thumbnail_large = ImageSpecField(
-        source='image',
-        processors=[ResizeToFit(600, 600)],
-        format='JPEG',
-        options={'quality': 90}
-    )
     is_primary = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -106,6 +87,30 @@ class ProductImage(models.Model):
 
     def __str__(self):
         return f"Image for {self.product.name}"
+
+    def get_thumbnail_small_url(self):
+        if self.image:
+            return self.image.build_url(
+                width=150, height=150, crop='fill',
+                format='webp', quality='auto'
+            )
+        return None
+
+    def get_thumbnail_medium_url(self):
+        if self.image:
+            return self.image.build_url(
+                width=300, height=300, crop='fill',
+                format='webp', quality='auto'
+            )
+        return None
+
+    def get_thumbnail_large_url(self):
+        if self.image:
+            return self.image.build_url(
+                width=600, height=600, crop='limit',
+                format='webp', quality='auto'
+            )
+        return None
 
 class Review(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='reviews')

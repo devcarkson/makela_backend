@@ -12,36 +12,27 @@ class ProductImageSerializer(serializers.ModelSerializer):
         fields = ['id', 'image', 'thumbnail_small', 'thumbnail_medium', 'thumbnail_large', 'is_primary']
     
     def get_thumbnail_small(self, obj):
-        request = self.context.get('request')
         try:
-            if obj.thumbnail_small and request:
-                return request.build_absolute_uri(obj.thumbnail_small.url)
+            if obj.image:
+                return obj.get_thumbnail_small_url()
         except:
-            # Fallback to original image if thumbnail fails
-            if obj.image and request:
-                return request.build_absolute_uri(obj.image.url)
+            pass
         return None
     
     def get_thumbnail_medium(self, obj):
-        request = self.context.get('request')
         try:
-            if obj.thumbnail_medium and request:
-                return request.build_absolute_uri(obj.thumbnail_medium.url)
+            if obj.image:
+                return obj.get_thumbnail_medium_url()
         except:
-            # Fallback to original image if thumbnail fails
-            if obj.image and request:
-                return request.build_absolute_uri(obj.image.url)
+            pass
         return None
     
     def get_thumbnail_large(self, obj):
-        request = self.context.get('request')
         try:
-            if obj.thumbnail_large and request:
-                return request.build_absolute_uri(obj.thumbnail_large.url)
+            if obj.image:
+                return obj.get_thumbnail_large_url()
         except:
-            # Fallback to original image if thumbnail fails
-            if obj.image and request:
-                return request.build_absolute_uri(obj.image.url)
+            pass
         return None
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -52,14 +43,11 @@ class CategorySerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'slug', 'image', 'thumbnail']
     
     def get_thumbnail(self, obj):
-        request = self.context.get('request')
         try:
-            if obj.thumbnail and request:
-                return request.build_absolute_uri(obj.thumbnail.url)
+            if obj.image:
+                return obj.get_thumbnail_url()
         except:
-            # Fallback to original image if thumbnail fails
-            if obj.image and request:
-                return request.build_absolute_uri(obj.image.url)
+            pass
         return None
 
 # class ProductSerializer(serializers.ModelSerializer):
@@ -104,27 +92,18 @@ class ProductListSerializer(serializers.ModelSerializer):
             primary_image = obj.images.first()
         
         if primary_image:
-            request = self.context.get('request')
             result = {'id': primary_image.id}
             
-            # Try to get thumbnails, fallback to original image
+            # Get Cloudinary thumbnail URLs
             try:
-                if primary_image.thumbnail_small and request:
-                    result['thumbnail_small'] = request.build_absolute_uri(primary_image.thumbnail_small.url)
-                elif primary_image.image and request:
-                    result['thumbnail_small'] = request.build_absolute_uri(primary_image.image.url)
+                result['thumbnail_small'] = primary_image.get_thumbnail_small_url()
             except:
-                if primary_image.image and request:
-                    result['thumbnail_small'] = request.build_absolute_uri(primary_image.image.url)
+                pass
             
             try:
-                if primary_image.thumbnail_medium and request:
-                    result['thumbnail_medium'] = request.build_absolute_uri(primary_image.thumbnail_medium.url)
-                elif primary_image.image and request:
-                    result['thumbnail_medium'] = request.build_absolute_uri(primary_image.image.url)
+                result['thumbnail_medium'] = primary_image.get_thumbnail_medium_url()
             except:
-                if primary_image.image and request:
-                    result['thumbnail_medium'] = request.build_absolute_uri(primary_image.image.url)
+                pass
             
             return result
         return None
@@ -202,15 +181,16 @@ class ProductMinimalSerializer(serializers.ModelSerializer):
             primary_image = obj.images.first()
         
         if primary_image:
-            request = self.context.get('request')
             try:
-                if request and primary_image.thumbnail_small:
-                    return request.build_absolute_uri(primary_image.thumbnail_small.url)
+                return primary_image.get_thumbnail_small_url()
             except:
                 pass
-            # Fallback to original image
-            if request and primary_image.image:
-                return request.build_absolute_uri(primary_image.image.url)
+            # Fallback to original image URL
+            try:
+                if primary_image.image:
+                    return str(primary_image.image.url)
+            except:
+                pass
         return None
 
 class WishlistSerializer(serializers.ModelSerializer):

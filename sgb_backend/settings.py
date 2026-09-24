@@ -20,6 +20,19 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 load_dotenv(os.path.join(BASE_DIR, '.env'))
 
+# Cloudinary Configuration
+CLOUDINARY_CLOUD_NAME = os.getenv('CLOUDINARY_CLOUD_NAME')
+CLOUDINARY_API_KEY = os.getenv('CLOUDINARY_API_KEY')
+CLOUDINARY_API_SECRET = os.getenv('CLOUDINARY_API_SECRET')
+CLOUDINARY_URL = os.getenv('CLOUDINARY_URL')
+
+import cloudinary
+cloudinary.config(
+    cloud_name=os.getenv('CLOUDINARY_CLOUD_NAME', 'lf1volkd'),
+    api_key=os.getenv('CLOUDINARY_API_KEY', '924518315999422'),
+    api_secret=os.getenv('CLOUDINARY_API_SECRET', '4_N6qWS2MxqpVGKzlUcAhSvU0Mw'),
+)
+
 
 
 # Quick-start development settings - unsuitable for production
@@ -45,6 +58,16 @@ ADMINS = [
 IMAGEKIT_DEFAULT_CACHEFILE_STRATEGY = 'imagekit.cachefiles.strategies.JustInTime'
 IMAGEKIT_CACHEFILE_NAMER = 'imagekit.cachefiles.namers.source_name_dot_hash'
 IMAGEKIT_SPEC_CACHEFILE_NAMER = 'imagekit.cachefiles.namers.source_name_as_path'
+
+# Cloudinary Storage Configuration
+CLOUDINARY_STORAGE = {
+    'CLOUD_NAME': os.getenv('CLOUDINARY_CLOUD_NAME', 'lf1volkd'),
+    'API_KEY': os.getenv('CLOUDINARY_API_KEY', '924518315999422'),
+    'API_SECRET': os.getenv('CLOUDINARY_API_SECRET', '4_N6qWS2MxqpVGKzlUcAhSvU0Mw'),
+    'MEDIA_TAG': 'media',
+}
+
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
 # Thumbnail settings
 THUMBNAIL_ENGINE = 'sorl.thumbnail.engines.pil_engine.Engine'
@@ -98,7 +121,9 @@ INSTALLED_APPS = [
     'django_rest_passwordreset',
     "django_extensions",
     'imagekit',
-    'sorl.thumbnail',
+    "sorl.thumbnail",
+    'cloudinary',
+    'cloudinary_storage',
     
     # Local
     'accounts',
@@ -230,7 +255,8 @@ AUTH_USER_MODEL = 'accounts.User'
 
 
 # for production
-MEDIA_URL = '/media/'
+# Cloudinary handles media file storage and URLs
+MEDIA_URL = 'https://res.cloudinary.com/lf1volkd/image/upload/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 # MEDIA_ROOT = os.path.join(BASE_DIR, 'gjwnjybm/public_html/media/')
 
