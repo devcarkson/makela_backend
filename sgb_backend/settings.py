@@ -309,7 +309,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:8081",
     "http://172.20.10.2:8081",
     "https://makelacosmetic.uk",
-    "https://sgb-h5g8.onrender.com",
+    "https://makelacosmetic.onrender.com",
     "https://carkson.nezismedicalltd.com",
 ]
 
