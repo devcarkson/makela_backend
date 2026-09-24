@@ -91,9 +91,9 @@ venv.bak/
 .DS_Store
 
 # Static and media
-static/
-media/
-media1/
+# static/
+# media/
+# media1/
 
 # Logs directory
 logs/
