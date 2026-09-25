@@ -11,7 +11,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.throttling import UserRateThrottle, AnonRateThrottle
 from orders.models import Order
 from orders.signals import send_order_confirmation_email
-from .services import FlutterwaveService
+from .services import FlutterwaveService, StripeService
 from .models import Payment
 from .serializers import (
     PaymentSerializer, 
@@ -360,3 +360,50 @@ class FlutterwaveWebhookView(APIView):
             return Response({
                 "error": "Internal server error"
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+@method_decorator(never_cache, name='dispatch')
+class StripeWebhookView(APIView):
+    """Handle Stripe webhook notifications."""
+    authentication_classes = []
+    permission_classes = []
+    throttle_classes = [WebhookRateThrottle]
+
+    def post(self, request):
+        payload = request.body
+        sig_header = request.headers.get('Stripe-Signature', '')
+
+        try:
+            success = StripeService.process_webhook(payload, sig_header)
+
+            if success:
+                # Send order confirmation email
+                event = None
+                try:
+                    import stripe as stripe_module
+                    stripe_module.api_key = settings.STRIPE_SECRET_KEY
+                    event = stripe_module.Webhook.construct_event(
+                        payload, sig_header, settings.STRIPE_WEBHOOK_SECRET
+                    )
+                except Exception:
+                    logger.error("Failed to reconstruct Stripe webhook event for email sending")
+
+                if event and event['type'] == 'checkout.session.completed':
+                    session = event['data']['object']
+                    payment_id = session.get('metadata', {}).get('payment_id')
+                    if payment_id:
+                        try:
+                            payment = Payment.objects.get(payment_id=payment_id)
+                            if payment.is_successful:
+                                send_order_confirmation_email(payment.order)
+                        except Payment.DoesNotExist:
+                            logger.error(f"Payment not found for payment_id: {payment_id}")
+
+                return Response({"message": "Webhook processed successfully"}, status=status.HTTP_200_OK)
+            else:
+                return Response({"error": "Webhook processing failed"}, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception as e:
+            logger.error(f"Stripe webhook error: {str(e)}")
+            return Response({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

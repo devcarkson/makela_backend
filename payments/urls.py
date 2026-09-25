@@ -7,7 +7,8 @@ from .views import (
     PaymentStatusView,
     PaymentRetryView,
     PaymentListView,
-    FlutterwaveWebhookView
+    FlutterwaveWebhookView,
+    StripeWebhookView
 )
 
 urlpatterns = [
@@ -30,4 +31,5 @@ urlpatterns = [
     
     # Webhooks
     path('webhooks/flutterwave/', FlutterwaveWebhookView.as_view(), name='flutterwave-webhook'),
+    path('webhooks/stripe/', StripeWebhookView.as_view(), name='stripe-webhook'),
 ]

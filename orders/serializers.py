@@ -6,6 +6,36 @@ from accounts.serializers import UserSerializer
 from accounts.models import Address
 from decimal import Decimal
 
+# Valid UK regions
+UK_REGIONS = [
+    'england', 'scotland', 'wales', 'northern-ireland'
+]
+
+# Valid Irish provinces
+IRISH_PROVINCES = [
+    'connacht', 'leinster', 'munster', 'ulster'
+]
+
+# All valid EU states/regions (using generic 'other' for non-UK/IE)
+EU_STATES = ['other']
+
+
+def validate_shipping_state(value, country):
+    """Validate shipping state/region based on country"""
+    if country == 'GB':
+        if value not in UK_REGIONS:
+            raise serializers.ValidationError(
+                f"Invalid region for United Kingdom. Valid regions: {', '.join(UK_REGIONS)}"
+            )
+    elif country == 'IE':
+        if value not in IRISH_PROVINCES:
+            raise serializers.ValidationError(
+                f"Invalid province for Ireland. Valid provinces: {', '.join(IRISH_PROVINCES)}"
+            )
+    # EU and other countries: accept any state/region value
+    return value
+
+
 class CartItemSerializer(serializers.ModelSerializer):
     product = ProductSerializer(read_only=True)
     total_price = serializers.SerializerMethodField()
@@ -152,6 +182,12 @@ class CheckoutSerializer(serializers.Serializer):
         help_text="Whether to save shipping info for future orders"
     )
 
+    def validate_shipping_state(self, value):
+        """Validate shipping state/region based on the selected country"""
+        # Get the country from the request data (not yet in validated_data at field validation time)
+        country = self.initial_data.get('shipping_country', '')
+        return validate_shipping_state(value, country)
+
     def validate(self, data):
         request = self.context.get('request')
         cart = request.user.cart
@@ -164,41 +200,34 @@ class CheckoutSerializer(serializers.Serializer):
         return data
 
     def _calculate_shipping_fee(self, subtotal, state, city):
-        """Calculate shipping fee based on location and order value"""
-        # Only operate in Lagos State
-        if not state or state.lower() not in ['lagos', 'lagos state']:
-            raise serializers.ValidationError({
-                "shipping_state": "We currently only deliver within Lagos State. Please use WhatsApp order for other locations."
-            })
-        
-        # Debug logging
+        """Calculate shipping fee based on location and order value.
+
+        Supports UK, Ireland, and other European countries.
+        """
         import logging
         logger = logging.getLogger(__name__)
-        logger.info(f"Calculating shipping - Subtotal: {subtotal}, State: {state}, City: {city}")
-        
-        # Free shipping for orders over ₦100,000 (increased threshold)
-        if subtotal >= Decimal('100000'):
-            logger.info(f"Free shipping applied - subtotal {subtotal} >= 100000")
+
+        country = self.context.get('request').data.get('shipping_country', '')
+        state = self.context.get('request').data.get('shipping_state', '')
+        city = self.context.get('request').data.get('shipping_city', '')
+
+        # Free shipping threshold: £100 for UK/EU orders
+        free_shipping_threshold = Decimal('10000')
+        if subtotal >= free_shipping_threshold:
+            logger.info(f"Free shipping applied - subtotal {subtotal} >= {free_shipping_threshold}")
             return Decimal('0')
-        
-        # Lagos Island areas (₦4,500 shipping)
-        lagos_island_areas = [
-            'apapa', 'lagos island', 'lagos mainland', 'surulere', 'yaba', 'ebute metta',
-            'victoria island', 'ikoyi', 'banana island', 'lekki phase 1', 'lekki phase 2',
-            'ajah', 'eti-osa', 'ibeju-lekki', 'epe', 'badagry', 'vi', 'lekki'
-        ]
-        
-        # Check if it's Lagos Island area (₦4,500)
-        if city:
-            city_lower = city.lower()
-            for island_area in lagos_island_areas:
-                if island_area in city_lower or city_lower in island_area:
-                    logger.info(f"Lagos Island shipping applied for city: {city}")
-                    return Decimal('4500')  # ₦4,500 for Lagos Island
-        
-        # Default to Lagos Mainland (₦3,500)
-        logger.info(f"Lagos Mainland shipping applied for city: {city}")
-        return Decimal('3500')  # ₦3,500 for Lagos Mainland
+
+        # UK / Ireland specific shipping calculation
+        if country in ('GB', 'IE'):
+            # UK standard shipping: £5.99, Express: £12.99
+            # Ireland shipping: £9.99
+            if country == 'GB':
+                return Decimal('5.99')
+            else:
+                return Decimal('9.99')
+
+        # EU shipping (flat rate)
+        return Decimal('9.99')
 
     def create(self, validated_data):
         request = self.context.get('request')

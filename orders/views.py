@@ -256,6 +256,40 @@ class CheckoutView(generics.CreateAPIView):
                     },
                     status=status.HTTP_201_CREATED
                 )
+
+            elif payment_method == 'stripe':
+                from payments.services import StripeService
+                try:
+                    payment_response = StripeService.initialize_payment(order)
+                    checkout_url = payment_response.get('data', {}).get('checkout_url')
+                    payment_id = payment_response.get('data', {}).get('payment_id')
+                    session_id = payment_response.get('data', {}).get('session_id')
+
+                    if not checkout_url:
+                        return Response(
+                            {"detail": "Stripe payment initialization failed: No checkout URL returned."},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+
+                    return Response(
+                        {
+                            "payment_url": checkout_url,
+                            "payment_id": payment_id,
+                            "session_id": session_id,
+                            "reference": order.order_number,
+                            "order_id": order.id,
+                            "order": OrderSerializer(order).data,
+                            "status": order.status,
+                            "payment_method": payment_method
+                        },
+                        status=status.HTTP_201_CREATED
+                    )
+
+                except Exception as e:
+                    return Response(
+                        {"detail": f"Stripe payment initialization failed: {str(e)}"},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
             
             elif payment_method in ['bank_transfer', 'cash_on_delivery']:
                 # For other payment methods, return order details with instructions
