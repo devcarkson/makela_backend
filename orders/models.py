@@ -4,7 +4,7 @@ from django.dispatch import receiver
 from django.utils import timezone
 import uuid
 from accounts.models import User
-from products.models import Product
+from products.models import Product, ProductVariant
 from decimal import Decimal
 from model_utils import FieldTracker
 
@@ -62,26 +62,48 @@ class CartItem(models.Model):
         related_name='cart_items',
         verbose_name="Product"
     )
+    variant = models.ForeignKey(
+        ProductVariant,
+        on_delete=models.CASCADE,
+        related_name='cart_items',
+        verbose_name="Variant",
+        blank=True,
+        null=True
+    )
     quantity = models.PositiveIntegerField(
         default=1,
         verbose_name="Quantity"
     )
+    size_name = models.CharField(max_length=50, blank=True, verbose_name="Size (Snapshot)")
+    color_name = models.CharField(max_length=50, blank=True, verbose_name="Color (Snapshot)")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Created At")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Updated At")
 
     class Meta:
         verbose_name = "Cart Item"
         verbose_name_plural = "Cart Items"
-        unique_together = ('cart', 'product')
+        unique_together = ('cart', 'product', 'variant')
         ordering = ['-created_at']
 
     def __str__(self):
-        return f"{self.quantity}x {self.product.name[:20]} (Cart #{self.cart.id})"
+        variant_info = f" ({self.size_name}/{self.color_name})" if self.size_name else ""
+        return f"{self.quantity}x {self.product.name[:20]}{variant_info} (Cart #{self.cart.id})"
+
+    def save(self, *args, **kwargs):
+        """Capture variant details at time of save"""
+        if self.variant:
+            self.size_name = self.variant.size.name
+            self.color_name = self.variant.color.name
+        super().save(*args, **kwargs)
 
     @property
     def total_price(self):
         """Calculates total price for this cart item"""
-        return Decimal(self.product.price) * Decimal(self.quantity)
+        if self.variant:
+            price = self.variant.effective_price
+        else:
+            price = self.product.price
+        return Decimal(price) * Decimal(self.quantity)
 
 
 class Order(models.Model):
@@ -266,6 +288,14 @@ class OrderItem(models.Model):
         related_name='order_items',
         verbose_name="Product"
     )
+    variant = models.ForeignKey(
+        ProductVariant,
+        on_delete=models.SET_NULL,
+        related_name='order_items',
+        verbose_name="Variant",
+        blank=True,
+        null=True
+    )
     quantity = models.PositiveIntegerField(verbose_name="Quantity")
     price = models.DecimalField(
         max_digits=12,
@@ -287,6 +317,16 @@ class OrderItem(models.Model):
         blank=True,
         verbose_name="Product Description (Snapshot)"
     )
+    size_name = models.CharField(
+        max_length=50,
+        blank=True,
+        verbose_name="Size (Snapshot)"
+    )
+    color_name = models.CharField(
+        max_length=50,
+        blank=True,
+        verbose_name="Color (Snapshot)"
+    )
 
     class Meta:
         verbose_name = "Order Item"
@@ -294,15 +334,19 @@ class OrderItem(models.Model):
         ordering = ['-id']
 
     def __str__(self):
-        return f"{self.quantity}x {self.product_name[:20]} (Order #{self.order.order_number})"
+        variant_info = f" ({self.size_name}/{self.color_name})" if self.size_name else ""
+        return f"{self.quantity}x {self.product_name[:20]}{variant_info} (Order #{self.order.order_number})"
 
     def save(self, *args, **kwargs):
-        """Capture product details at time of order creation"""
+        """Capture variant details at time of order creation"""
         if not self.pk:  # Only on initial creation
             self.product_name = self.product.name
             if self.product.images.exists():
                 self.product_image = self.product.images.first().image.url
             self.product_description = self.product.description
+            if self.variant:
+                self.size_name = self.variant.size.name
+                self.color_name = self.variant.color.name
         super().save(*args, **kwargs)
 
     @property

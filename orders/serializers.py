@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import Cart, CartItem, Order, OrderItem
-from products.models import Product
-from products.serializers import ProductSerializer
+from products.models import Product, ProductVariant
+from products.serializers import ProductSerializer, ProductVariantSerializer
 from accounts.serializers import UserSerializer
 from accounts.models import Address
 from decimal import Decimal
@@ -38,20 +38,28 @@ def validate_shipping_state(value, country):
 
 class CartItemSerializer(serializers.ModelSerializer):
     product = ProductSerializer(read_only=True)
+    variant = ProductVariantSerializer(read_only=True)
     total_price = serializers.SerializerMethodField()
     product_id = serializers.PrimaryKeyRelatedField(
         queryset=Product.objects.all(),
         source='product',
         write_only=True
     )
+    variant_id = serializers.PrimaryKeyRelatedField(
+        queryset=ProductVariant.objects.all(),
+        source='variant',
+        write_only=True,
+        required=False,
+        allow_null=True
+    )
 
     class Meta:
         model = CartItem
         fields = [
-            'id', 'product', 'product_id', 'quantity', 
-            'total_price', 'created_at', 'updated_at'
+            'id', 'product', 'product_id', 'variant', 'variant_id', 'quantity', 
+            'total_price', 'size_name', 'color_name', 'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'size_name', 'color_name']
 
     def get_total_price(self, obj):
         return obj.total_price
@@ -60,6 +68,28 @@ class CartItemSerializer(serializers.ModelSerializer):
         if value < 1:
             raise serializers.ValidationError("Quantity must be at least 1")
         return value
+
+    def validate(self, data):
+        """Validate variant belongs to product and check stock"""
+        product = data.get('product')
+        variant = data.get('variant')
+        
+        if variant and variant.product != product:
+            raise serializers.ValidationError(
+                {"variant": "Variant does not belong to this product"}
+            )
+        
+        if variant and variant.stock < data.get('quantity', 1):
+            raise serializers.ValidationError(
+                {"variant": f"Only {variant.stock} items available in stock"}
+            )
+        
+        if not variant and product and product.stock < data.get('quantity', 1):
+            raise serializers.ValidationError(
+                {"product": f"Only {product.stock} items available in stock"}
+            )
+        
+        return data
 
 
 class CartSerializer(serializers.ModelSerializer):
@@ -90,14 +120,15 @@ class CartSerializer(serializers.ModelSerializer):
 
 class OrderItemSerializer(serializers.ModelSerializer):
     product = ProductSerializer(read_only=True)
+    variant = ProductVariantSerializer(read_only=True)
     total_price = serializers.SerializerMethodField()
 
     class Meta:
         model = OrderItem
         fields = [
-            'id', 'product', 'quantity', 'price', 
+            'id', 'product', 'variant', 'quantity', 'price', 
             'total_price', 'product_name', 'product_image',
-            'product_description'
+            'product_description', 'size_name', 'color_name'
         ]
         read_only_fields = fields
 
@@ -276,8 +307,9 @@ class CheckoutSerializer(serializers.Serializer):
             order_items.append(OrderItem(
                 order=order,
                 product=cart_item.product,
+                variant=cart_item.variant,
                 quantity=cart_item.quantity,
-                price=cart_item.product.price,
+                price=cart_item.variant.effective_price if cart_item.variant else cart_item.product.price,
                 product_name=cart_item.product.name,
                 product_description=cart_item.product.description,
                 product_image=cart_item.product.images.first().image.url if cart_item.product.images.exists() else ''

@@ -27,7 +27,8 @@ class CartDetailView(generics.RetrieveAPIView):
 
 class CartItemCreateView(generics.CreateAPIView):
     """
-    Add a product to the user's cart or update quantity if already exists
+    Add a product to the user's cart or update quantity if already exists.
+    Supports product variants (size/color combinations).
     """
     serializer_class = CartItemSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -35,12 +36,14 @@ class CartItemCreateView(generics.CreateAPIView):
     def perform_create(self, serializer):
         cart = Cart.get_or_create_cart(self.request.user)
         product = serializer.validated_data['product']
+        variant = serializer.validated_data.get('variant')
         quantity = serializer.validated_data.get('quantity', 1)
         
-        # Update quantity if product already in cart
+        # Update quantity if product (and variant) already in cart
         cart_item, created = CartItem.objects.get_or_create(
             cart=cart,
             product=product,
+            variant=variant,
             defaults={'quantity': quantity}
         )
         if not created:

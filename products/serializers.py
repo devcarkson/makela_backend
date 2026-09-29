@@ -1,6 +1,38 @@
 from rest_framework import serializers
-from .models import Category, Product, ProductImage, Review, Wishlist, Notification
+from .models import Category, Product, ProductImage, Review, Wishlist, Notification, Size, Color, ProductVariant
 from django.contrib.auth import get_user_model
+
+
+class SizeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Size
+        fields = ['id', 'name', 'display_name', 'sort_order']
+
+
+class ColorSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Color
+        fields = ['id', 'name', 'hex_code']
+
+
+class ProductVariantSerializer(serializers.ModelSerializer):
+    size = SizeSerializer(read_only=True)
+    color = ColorSerializer(read_only=True)
+    size_id = serializers.PrimaryKeyRelatedField(queryset=Size.objects.all(), source='size', write_only=True)
+    color_id = serializers.PrimaryKeyRelatedField(queryset=Color.objects.all(), source='color', write_only=True)
+    effective_price = serializers.SerializerMethodField()
+    current_price = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ProductVariant
+        fields = ['id', 'size', 'color', 'size_id', 'color_id', 'price', 'stock', 'sku', 'is_active', 'effective_price', 'current_price']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+    def get_effective_price(self, obj):
+        return obj.effective_price
+
+    def get_current_price(self, obj):
+        return obj.current_price
 
 class ProductImageSerializer(serializers.ModelSerializer):
     thumbnail_small = serializers.SerializerMethodField()
@@ -70,26 +102,50 @@ class ReviewSerializer(serializers.ModelSerializer):
         fields = ['id', 'user', 'rating', 'comment', 'created_at']
         read_only_fields = ['id', 'user', 'created_at']
 
+def variant_options(variants, size_key='name', color_key='name'):
+    """Collect distinct size/color option names from already fetched variants.
+
+    Uses the prefetch cache when the queryset prefetched the variants, which
+    avoids the per-product queries a values_list().distinct() lookup would run.
+    """
+    sizes = []
+    colors = []
+    for variant in variants:
+        size = getattr(variant.size, size_key, None)
+        if size and size not in sizes:
+            sizes.append(size)
+        color = getattr(variant.color, color_key, None)
+        if color and color not in colors:
+            colors.append(color)
+    return sizes, colors
+
+
 # Lightweight serializer for list views (faster loading)
 class ProductListSerializer(serializers.ModelSerializer):
     category = CategorySerializer(read_only=True)
     primary_image = serializers.SerializerMethodField()
     rating = serializers.SerializerMethodField()
     review_count = serializers.SerializerMethodField()
+    available_sizes = serializers.SerializerMethodField()
+    available_colors = serializers.SerializerMethodField()
+    has_variants = serializers.BooleanField(read_only=True)
     
     class Meta:
         model = Product
         fields = [
             'id', 'name', 'slug', 'price', 'discount_price', 
             'stock', 'rating', 'review_count', 'category', 
-            'primary_image', 'is_featured', 'is_new_arrival'
+            'primary_image', 'is_featured', 'is_new_arrival',
+            'has_variants', 'available_sizes', 'available_colors'
         ]
     
     def get_primary_image(self, obj):
         """Get only the primary image thumbnail for list view"""
-        primary_image = obj.images.filter(is_primary=True).first()
-        if not primary_image:
-            primary_image = obj.images.first()
+        # Read from the prefetch cache; .filter() here would re-query per product
+        images = list(obj.images.all())
+        primary_image = next((image for image in images if image.is_primary), None)
+        if not primary_image and images:
+            primary_image = images[0]
         
         if primary_image:
             result = {'id': primary_image.id}
@@ -104,7 +160,12 @@ class ProductListSerializer(serializers.ModelSerializer):
                 result['thumbnail_medium'] = primary_image.get_thumbnail_medium_url()
             except:
                 pass
-            
+
+            try:
+                result['thumbnail_large'] = primary_image.get_thumbnail_large_url()
+            except:
+                pass
+
             return result
         return None
     
@@ -128,6 +189,16 @@ class ProductListSerializer(serializers.ModelSerializer):
         obj._cached_review_count = count
         return count
 
+    def get_available_sizes(self, obj):
+        if obj.has_variants:
+            return variant_options(obj.variants.all())[0]
+        return []
+
+    def get_available_colors(self, obj):
+        if obj.has_variants:
+            return variant_options(obj.variants.all())[1]
+        return []
+
 # Full serializer for detail views
 class ProductSerializer(serializers.ModelSerializer):
     images = ProductImageSerializer(many=True, read_only=True)
@@ -136,15 +207,20 @@ class ProductSerializer(serializers.ModelSerializer):
     rating = serializers.SerializerMethodField()
     review_count = serializers.SerializerMethodField()
     primary_image = serializers.SerializerMethodField()
-    
+    variants = ProductVariantSerializer(many=True, read_only=True)
+    available_sizes = serializers.SerializerMethodField()
+    available_colors = serializers.SerializerMethodField()
+    total_stock = serializers.SerializerMethodField()
+
     class Meta:
         model = Product
         fields = [
             'id', 'name', 'slug', 'description', 'price', 
             'discount_price', 'stock', 'rating', 'review_count', 'category', 
-            'images', 'primary_image', 'created_at', 'is_featured', 'is_new_arrival', 'reviews'
+            'images', 'primary_image', 'created_at', 'is_featured', 'is_new_arrival', 'reviews',
+            'has_variants', 'variants', 'available_sizes', 'available_colors', 'total_stock'
         ]
-    
+
     def get_primary_image(self, obj):
         """Get the primary image or first image for quick loading"""
         primary_image = obj.images.filter(is_primary=True).first()
@@ -166,6 +242,19 @@ class ProductSerializer(serializers.ModelSerializer):
         # Use prefetched reviews to avoid N+1 queries
         reviews = getattr(obj, 'prefetched_reviews', obj.reviews.all())
         return len(reviews)
+
+    def get_available_sizes(self, obj):
+        if obj.has_variants:
+            return variant_options(obj.variants.all(), 'display_name')[0]
+        return []
+
+    def get_available_colors(self, obj):
+        if obj.has_variants:
+            return variant_options(obj.variants.all())[1]
+        return []
+
+    def get_total_stock(self, obj):
+        return obj.total_stock
 
 # Minimal serializer for better performance in lists
 class ProductMinimalSerializer(serializers.ModelSerializer):

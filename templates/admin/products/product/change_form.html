@@ -1,0 +1,124 @@
+{% extends "admin/change_form.html" %}
+{% load static %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+    /* Color swatch display in variant inline dropdowns */
+    .color-variant-select {
+        min-width: 220px;
+    }
+    
+    .color-variant-select-wrapper {
+        position: relative;
+        display: inline-block;
+    }
+    
+    .color-variant-swatch {
+        position: absolute;
+        left: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 16px;
+        height: 16px;
+        border-radius: 3px;
+        border: 1px solid rgba(0,0,0,0.2);
+        pointer-events: none;
+        z-index: 2;
+        background: #fff;
+    }
+    
+    .color-variant-select {
+        padding-left: 36px !important;
+    }
+    
+    /* Inline form enhancements */
+    .dynamic-productvariant_set .inline-group table td .color-variant-select-wrapper {
+        width: 100%;
+    }
+    
+    .dynamic-productvariant_set select[name$="-color"] {
+        padding-left: 36px;
+    }
+    
+    /* Tabular inline color dropdown */
+    .tabular inline tr td .color-variant-select {
+        min-width: 180px;
+    }
+</style>
+{% endblock %}
+
+{% block after_related_objects %}
+{{ block.super }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Extract hex codes from color option text and add swatches
+    function enhanceColorDropdowns() {
+        document.querySelectorAll('select[name$="color"], .color-variant-select').forEach(function(select) {
+            if (select.hasAttribute('data-swatch-enhanced')) return;
+            select.setAttribute('data-swatch-enhanced', 'true');
+            
+            // Build hex map from option text
+            var hexMap = {};
+            Array.from(select.options).forEach(function(opt) {
+                var match = opt.textContent.match(/\(#([0-9A-Fa-f]{6})\)/);
+                if (match) {
+                    hexMap[opt.value] = '#' + match[1].toUpperCase();
+                }
+            });
+            
+            // Wrap select for swatch positioning
+            var wrapper = document.createElement('div');
+            wrapper.className = 'color-variant-select-wrapper';
+            select.parentNode.insertBefore(wrapper, select);
+            wrapper.appendChild(select);
+            
+            // Create swatch element
+            var swatch = document.createElement('div');
+            swatch.className = 'color-variant-swatch';
+            swatch.style.display = select.value ? 'block' : 'none';
+            wrapper.appendChild(swatch);
+            
+            // Update swatch on change
+            function updateSwatch() {
+                var hex = hexMap[select.value];
+                if (hex) {
+                    swatch.style.display = 'block';
+                    swatch.style.backgroundColor = hex;
+                } else {
+                    swatch.style.display = 'none';
+                }
+            }
+            
+            select.addEventListener('change', updateSwatch);
+            updateSwatch();
+        });
+    }
+    
+    enhanceColorDropdowns();
+    
+    // Watch for inline form additions
+    var observer = new MutationObserver(function(mutations) {
+        var shouldEnhance = false;
+        mutations.forEach(function(mutation) {
+            if (mutation.addedNodes && mutation.addedNodes.length) {
+                shouldEnhance = true;
+            }
+        });
+        if (shouldEnhance) {
+            setTimeout(enhanceColorDropdowns, 100);
+        }
+    });
+    
+    var inlineContainer = document.querySelector('.dynamic-productvariant_set');
+    if (inlineContainer) {
+        observer.observe(inlineContainer, { childList: true, subtree: true });
+    }
+    
+    // Also observe tabular inline
+    document.querySelectorAll('.tabular, .inline-group').forEach(function(el) {
+        observer.observe(el, { childList: true, subtree: true });
+    });
+});
+</script>
+{% endblock %}

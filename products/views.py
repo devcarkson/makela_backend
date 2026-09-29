@@ -28,6 +28,7 @@ class StandardPagination(PageNumberPagination):
             'results': data
         })
 
+@method_decorator(never_cache, name='dispatch')
 class ProductListView(generics.ListAPIView):
     serializer_class = ProductListSerializer  # Use lightweight serializer for list view
     pagination_class = StandardPagination
@@ -40,7 +41,9 @@ class ProductListView(generics.ListAPIView):
         # Optimize queries with select_related and prefetch_related
         queryset = Product.objects.select_related('category').prefetch_related(
             'images',
-            'reviews'
+            'reviews',
+            'variants__size',
+            'variants__color'
         )
         
         # Manual filtering
@@ -68,8 +71,13 @@ class ProductListView(generics.ListAPIView):
         if is_new_arrival and is_new_arrival.lower() == 'true':
             queryset = queryset.filter(is_new_arrival=True)
             
+        is_active = self.request.query_params.get('is_active')
+        if is_active:
+            queryset = queryset.filter(is_active=is_active.lower() == 'true')
+            
         return queryset
 
+@method_decorator(never_cache, name='dispatch')
 class ProductDetailView(generics.RetrieveAPIView):
     serializer_class = ProductSerializer
     lookup_field = 'slug'
@@ -78,7 +86,9 @@ class ProductDetailView(generics.RetrieveAPIView):
         # Optimize queries for detail view
         return Product.objects.select_related('category').prefetch_related(
             'images',
-            'reviews__user'
+            'reviews__user',
+            'variants__size',
+            'variants__color'
         )
 
 @method_decorator(cache_page(60 * 15), name='dispatch')  # Cache for 15 minutes
@@ -87,22 +97,28 @@ class CategoryListView(generics.ListAPIView):
     serializer_class = CategorySerializer
     pagination_class = StandardPagination
     
+@method_decorator(never_cache, name='dispatch')
 class FeaturedProductsAPIView(APIView):
     def get(self, request):
         featured_products = Product.objects.filter(is_featured=True).select_related('category').prefetch_related(
             'images',
-            'reviews'
+            'reviews',
+            'variants__size',
+            'variants__color'
         )
         paginator = StandardPagination()
         result_page = paginator.paginate_queryset(featured_products, request)
         serializer = ProductListSerializer(result_page, many=True, context={'request': request})
         return paginator.get_paginated_response(serializer.data)
     
+@method_decorator(never_cache, name='dispatch')
 class NewArrivalAPIView(APIView):
     def get(self, request, *args, **kwargs):
         new_products = Product.objects.filter(is_new_arrival=True).select_related('category').prefetch_related(
             'images',
-            'reviews'
+            'reviews',
+            'variants__size',
+            'variants__color'
         )
         paginator = StandardPagination()
         result_page = paginator.paginate_queryset(new_products, request)
