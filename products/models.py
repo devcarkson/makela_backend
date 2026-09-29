@@ -25,7 +25,7 @@ class Category(models.Model):
         if self.image:
             return self.image.build_url(
                 width=150, height=150, crop='fill',
-                format='webp', quality='auto'
+                format='webp', quality='auto', secure=True
             )
         return None
 
@@ -204,7 +204,7 @@ class ProductImage(models.Model):
         if self.image:
             return self.image.build_url(
                 width=150, height=150, crop='fill',
-                format='webp', quality='auto'
+                format='webp', quality='auto', secure=True
             )
         return None
 
@@ -212,7 +212,7 @@ class ProductImage(models.Model):
         if self.image:
             return self.image.build_url(
                 width=300, height=300, crop='fill',
-                format='webp', quality='auto'
+                format='webp', quality='auto', secure=True
             )
         return None
 
@@ -220,7 +220,7 @@ class ProductImage(models.Model):
         if self.image:
             return self.image.build_url(
                 width=600, height=600, crop='limit',
-                format='webp', quality='auto'
+                format='webp', quality='auto', secure=True
             )
         return None
 

@@ -35,6 +35,7 @@ class ProductVariantSerializer(serializers.ModelSerializer):
         return obj.current_price
 
 class ProductImageSerializer(serializers.ModelSerializer):
+    image = serializers.SerializerMethodField()
     thumbnail_small = serializers.SerializerMethodField()
     thumbnail_medium = serializers.SerializerMethodField()
     thumbnail_large = serializers.SerializerMethodField()
@@ -42,6 +43,9 @@ class ProductImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductImage
         fields = ['id', 'image', 'thumbnail_small', 'thumbnail_medium', 'thumbnail_large', 'is_primary']
+    
+    def get_image(self, obj):
+        return secure_url(obj.image.url) if obj.image else None
     
     def get_thumbnail_small(self, obj):
         try:
@@ -68,11 +72,15 @@ class ProductImageSerializer(serializers.ModelSerializer):
         return None
 
 class CategorySerializer(serializers.ModelSerializer):
+    image = serializers.SerializerMethodField()
     thumbnail = serializers.SerializerMethodField()
     
     class Meta:
         model = Category
         fields = ['id', 'name', 'slug', 'image', 'thumbnail']
+
+    def get_image(self, obj):
+        return secure_url(obj.image.url) if obj.image else None
     
     def get_thumbnail(self, obj):
         try:
@@ -101,6 +109,13 @@ class ReviewSerializer(serializers.ModelSerializer):
         model = Review
         fields = ['id', 'user', 'rating', 'comment', 'created_at']
         read_only_fields = ['id', 'user', 'created_at']
+
+def secure_url(url):
+    """Cloudinary's default build_url() is http, which triggers mixed-content on https sites."""
+    if url and url.startswith('http://'):
+        return 'https://' + url[len('http://'):]
+    return url
+
 
 def variant_options(variants, size_key='name', color_key='name'):
     """Collect distinct size/color option names from already fetched variants.
