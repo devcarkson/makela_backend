@@ -1,0 +1,14 @@
+{% extends "admin/base.html" %}
+{% load static %}
+
+{% comment %}
+jazzmin loads the brand stylesheet itself via JAZZMIN_SETTINGS["custom_css"]
+(so it also applies to the login screen), and renders the favicon from
+"site_icon". This override only adds the remaining favicon variants.
+{% endcomment %}
+
+{% block extrastyle %}{{ block.super }}
+<link rel="icon" href="{% static 'admin/img/favicon.ico' %}" sizes="any">
+<link rel="icon" type="image/png" sizes="16x16" href="{% static 'admin/img/favicon-16x16.png' %}">
+<link rel="apple-touch-icon" sizes="180x180" href="{% static 'admin/img/apple-touch-icon.png' %}">
+{% endblock %}

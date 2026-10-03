@@ -156,7 +156,16 @@ CORS_ALLOW_HEADERS = [
 ]
 
 # Jazzmin admin customization
+# Brand assets live in static/admin/img/ and are styled by static/admin/css/custom.css.
 JAZZMIN_SETTINGS = {
+    "site_title": "Makela admin",
+    "site_header": "Makela",
+    "site_brand": "",
+    "site_logo": "admin/img/logo.webp",
+    "site_logo_classes": "",
+    "site_icon": "admin/img/favicon-32x32.png",
+    "custom_css": "admin/css/custom.css",
+    "copyright": "Makela",
     "hide_apps": [
         "authtoken",
         "auth",

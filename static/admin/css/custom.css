@@ -1,8 +1,186 @@
-/* Product image previews */
+/* Makela admin theme — overrides django-jazzmin / AdminLTE styling.
+   jazzmin's compiled adminlte.min.css hardcodes colors, so the brand palette
+   is applied through explicit selector overrides. */
+
+/* ---------------------------------------------------------------- sidebar */
+
+#jazzy-sidebar,
+.main-sidebar.sidebar-dark-primary {
+    background-color: #3f1721 !important;
+}
+
+#jazzy-sidebar .brand-link {
+    background-color: #602434;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* The wordmark is dark artwork on a dark sidebar, so invert it for contrast. */
+#jazzy-sidebar .brand-link img.brand-image,
+.main-sidebar .brand-link img.brand-image {
+    height: 42px;
+    max-height: 42px;
+    width: auto;
+    max-width: 190px;
+    margin: 0;
+    opacity: 1;
+    filter: invert(1) brightness(1.85);
+    box-shadow: none;
+}
+
+/* The wordmark already carries the brand name, so the sidebar shows logo only. */
+#jazzy-sidebar .brand-link .brand-text {
+    display: none;
+}
+
+/* Collapsed sidebar is only 4.6rem wide, so shrink the wordmark to fit it. */
+body.sidebar-collapse #jazzy-sidebar .brand-link img.brand-image {
+    height: auto;
+    max-height: 24px;
+    max-width: 60px;
+}
+
+#jazzy-sidebar .nav-sidebar .nav-link {
+    color: rgba(255, 255, 255, 0.82);
+}
+
+#jazzy-sidebar .nav-sidebar .nav-link:hover {
+    color: #ffffff;
+    background-color: rgba(177, 67, 97, 0.35);
+}
+
+#jazzy-sidebar .nav-sidebar .nav-link.active {
+    background-color: #b14361 !important;
+    color: #ffffff !important;
+    box-shadow: inset 3px 0 0 #f4e1e6;
+}
+
+#jazzy-sidebar .nav-sidebar .nav-header {
+    color: rgba(255, 255, 255, 0.55);
+    border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+#jazzy-sidebar .user-panel {
+    border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+/* ------------------------------------------------------------- top navbar */
+
+.main-header.navbar {
+    border-bottom: 3px solid #b14361;
+}
+
+.main-header .nav-link,
+.main-header .navbar-nav .nav-link {
+    color: #602434;
+}
+
+.form-control-navbar {
+    border-color: #e4bec8;
+}
+
+.form-control-navbar:focus {
+    border-color: #b14361;
+    box-shadow: 0 0 0 0.2rem rgba(177, 67, 97, 0.15);
+}
+
+/* ---------------------------------------------------------------- widgets */
+
+.btn-primary {
+    color: #ffffff;
+    background-color: #b14361;
+    border-color: #b14361;
+}
+
+.btn-primary:hover,
+.btn-primary:focus,
+.btn-primary:active {
+    background-color: #9c3a54;
+    border-color: #9c3a54;
+}
+
+.btn-outline-primary {
+    color: #b14361;
+    border-color: #b14361;
+}
+
+.btn-outline-primary:hover,
+.btn-outline-primary:focus,
+.btn-outline-primary:active {
+    color: #ffffff;
+    background-color: #b14361;
+    border-color: #b14361;
+}
+
+.form-control:focus,
+.form-select:focus,
+.custom-select:focus {
+    border-color: #b14361;
+    box-shadow: 0 0 0 0.2rem rgba(177, 67, 97, 0.15);
+}
+
+.pagination .page-link {
+    color: #b14361;
+}
+
+.pagination .page-item.active .page-link {
+    background-color: #b14361;
+    border-color: #b14361;
+}
+
+.nav-tabs .nav-link.active {
+    color: #b14361;
+    border-bottom-color: #b14361;
+}
+
+a,
+a:hover,
+a:focus {
+    color: #b14361;
+}
+
+/* ------------------------------------------------------------ login screen */
+
+/* The 512x171 wordmark is unsized in AdminLTE, so it renders at natural size
+   (wider than the 500px login box) and overflows small viewports. */
+.jazzmin-login-page .login-box,
+.jazzmin-login-page .register-box {
+    width: 420px;
+}
+
+.jazzmin-login-page .login-logo h1 {
+    font-size: 1.5rem;
+    line-height: 1.2;
+    margin: 0 0 0.5rem;
+}
+
+.jazzmin-login-page .login-logo picture {
+    display: inline-block;
+    max-width: 100%;
+    line-height: 0;
+}
+
+.jazzmin-login-page .login-logo img {
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: 112px;
+}
+
+@media (max-width: 480px) {
+    .jazzmin-login-page .login-logo img {
+        max-height: 80px;
+    }
+}
+
+/* ------------------------------------------------------- product previews */
+
 .field-image_preview img {
     max-height: 100px;
     max-width: 100px;
-    border: 1px solid #ddd;
+    border: 1px solid #e8d9dd;
     border-radius: 4px;
 }
 
@@ -13,21 +191,21 @@
 
 /* Better action buttons */
 .object-tools a {
-    background-color: #417690;
-    color: white !important;
+    background-color: #b14361;
+    color: #ffffff !important;
     padding: 8px 12px;
     border-radius: 4px;
 }
 
 .object-tools a:hover {
-    background-color: #205067;
+    background-color: #9c3a54;
 }
 
 /* Status indicators */
 .column-is_active .icon-true {
-    color: green;
+    color: #2e7d32;
 }
 
 .column-is_active .icon-false {
-    color: red;
+    color: #dc3545;
 }
