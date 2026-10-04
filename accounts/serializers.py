@@ -50,6 +50,23 @@ class AddressSerializer(serializers.ModelSerializer):
             'phone', 'type', 'is_default'
         ]
 
+    def _clear_other_defaults(self, user, pk=None):
+        others = Address.objects.filter(user=user, is_default=True)
+        if pk is not None:
+            others = others.exclude(pk=pk)
+        others.update(is_default=False)
+
+    def create(self, validated_data):
+        address = super().create(validated_data)
+        if address.is_default:
+            self._clear_other_defaults(address.user, address.pk)
+        return address
+
+    def update(self, instance, validated_data):
+        if validated_data.get('is_default'):
+            self._clear_other_defaults(instance.user, instance.pk)
+        return super().update(instance, validated_data)
+
 class UserSettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserSettings

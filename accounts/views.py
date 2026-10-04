@@ -9,6 +9,7 @@ from .email_service import EmailService
 from .models import Address, UserSettings
 from rest_framework_simplejwt.views import TokenRefreshView
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework.permissions import AllowAny
 from django.contrib.auth import authenticate, login  # Added login import
 from rest_framework.permissions import IsAuthenticated
@@ -147,3 +148,27 @@ class UserStatsView(APIView):
             'wishlistItems': wishlist_items,
             'memberSince': member_since,
         })
+
+
+# Sign out - blacklists the refresh token so the session can be revoked.
+@method_decorator(never_cache, name='dispatch')
+class LogoutView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        refresh_token = request.data.get('refresh') or request.data.get('refresh_token')
+
+        if not refresh_token:
+            return Response({'detail': 'Refresh token is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+        except TokenError:
+            # Already expired, already revoked or malformed: nothing to do, the
+            # caller is logged out either way.
+            logger.info('Logout received an unusable refresh token.')
+        except AttributeError:
+            return Response({'detail': 'Token blacklisting is not enabled.'}, status=status.HTTP_501_NOT_IMPLEMENTED)
+
+        return Response({'detail': 'Logged out.'}, status=status.HTTP_200_OK)

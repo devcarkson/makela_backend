@@ -286,7 +286,8 @@ class ProductMinimalSerializer(serializers.ModelSerializer):
         
         if primary_image:
             try:
-                return primary_image.get_thumbnail_small_url()
+                # Wishlist cards render wider than 150px, so use the medium thumb.
+                return primary_image.get_thumbnail_medium_url()
             except:
                 pass
             # Fallback to original image URL

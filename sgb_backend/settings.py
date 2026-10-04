@@ -351,10 +351,14 @@ SESSION_COOKIE_SAMESITE = 'Lax'
 
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
-    'ROTATE_REFRESH_TOKENS': True,
-    'BLACKLIST_AFTER_ROTATION': True,
+    # Sessions are meant to stay signed in, so tokens are long lived.
+    'ACCESS_TOKEN_LIFETIME': timedelta(days=365),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=365),
+    # The refresh token is reusable: rotating it on every refresh blacklisted
+    # the previous one and raced with parallel requests. Sign out is what
+    # revokes a session now (see LogoutView).
+    'ROTATE_REFRESH_TOKENS': False,
+    'BLACKLIST_AFTER_ROTATION': False,
 }
 
 
