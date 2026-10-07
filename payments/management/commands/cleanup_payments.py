@@ -2,19 +2,19 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 from datetime import timedelta
 from payments.models import Payment
-from payments.services import FlutterwaveService
+from payments.services import StripeService
 import logging
 
 logger = logging.getLogger('payments')
 
 class Command(BaseCommand):
-    help = 'Cleanup and monitor payment statuses'
+    help = 'Cleanup and monitor payment statuses (Stripe only)'
 
     def add_arguments(self, parser):
         parser.add_argument(
             '--verify-pending',
             action='store_true',
-            help='Verify pending payments with Flutterwave',
+            help='Verify pending Stripe payments',
         )
         parser.add_argument(
             '--cleanup-old',
@@ -52,13 +52,13 @@ class Command(BaseCommand):
             )
 
     def verify_pending_payments(self):
-        """Verify pending payments with Flutterwave"""
-        self.stdout.write('Verifying pending payments...')
+        """Verify pending Stripe payments"""
+        self.stdout.write('Verifying pending Stripe payments...')
         
         pending_payments = Payment.objects.filter(
             status='pending',
-            gateway='flutterwave',
-            gateway_transaction_id__isnull=False
+            gateway='stripe',
+            gateway_reference__isnull=False
         )
         
         verified_count = 0
@@ -70,27 +70,20 @@ class Command(BaseCommand):
                     self.stdout.write(f'Would verify payment: {payment.payment_id}')
                     continue
                 
-                verification_data = FlutterwaveService.verify_payment(
-                    payment.gateway_transaction_id
-                )
+                session = StripeService.verify_payment(payment.gateway_reference)
                 
-                if (verification_data.get('status') == 'success' and 
-                    verification_data.get('data', {}).get('status') == 'successful'):
-                    
+                if session and session.payment_status == 'paid':
+                    pi_id = session.payment_intent.id if hasattr(session.payment_intent, 'id') else str(session.payment_intent)
                     payment.mark_as_successful(
-                        gateway_transaction_id=payment.gateway_transaction_id,
-                        gateway_response=verification_data
+                        gateway_transaction_id=pi_id,
+                        gateway_response={
+                            'session_id': session.id,
+                            'payment_intent': pi_id,
+                        }
                     )
                     verified_count += 1
                     self.stdout.write(
                         self.style.SUCCESS(f'✓ Payment {payment.payment_id} verified as successful')
-                    )
-                    
-                elif verification_data.get('data', {}).get('status') in ['failed', 'cancelled']:
-                    payment.mark_as_failed(gateway_response=verification_data)
-                    failed_count += 1
-                    self.stdout.write(
-                        self.style.ERROR(f'✗ Payment {payment.payment_id} marked as failed')
                     )
                     
             except Exception as e:

@@ -126,9 +126,12 @@ class PaymentAdmin(admin.ModelAdmin):
         for payment in queryset:
             if payment.can_retry:
                 try:
-                    from .services import FlutterwaveService
-                    FlutterwaveService.retry_failed_payment(payment)
-                    count += 1
+                    if payment.gateway == 'stripe':
+                        from .services import StripeService
+                        StripeService.initialize_payment(payment.order)
+                        count += 1
+                    else:
+                        self.message_user(request, f'Payment {payment.payment_id} is not a Stripe payment, cannot retry via this endpoint', level='WARNING')
                 except Exception as e:
                     self.message_user(request, f'Error retrying payment {payment.payment_id}: {str(e)}', level='ERROR')
         self.message_user(request, f'{count} payments retried.')

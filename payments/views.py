@@ -11,13 +11,12 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.throttling import UserRateThrottle, AnonRateThrottle
 from orders.models import Order
 from orders.signals import send_order_confirmation_email
-from .services import FlutterwaveService, StripeService
+from .services import StripeService
 from .models import Payment
 from .serializers import (
     PaymentSerializer, 
     PaymentInitializationSerializer,
     PaymentVerificationSerializer,
-    PaymentCallbackSerializer
 )
 import logging
 
@@ -33,7 +32,7 @@ class WebhookRateThrottle(AnonRateThrottle):
 
 @method_decorator(never_cache, name='dispatch')
 class PaymentInitializeView(APIView):
-    """Initialize payment for an order"""
+    """Initialize Stripe payment for an order"""
     permission_classes = [IsAuthenticated]
     throttle_classes = [PaymentRateThrottle]
 
@@ -53,35 +52,33 @@ class PaymentInitializeView(APIView):
                     "payment_status": True
                 }, status=status.HTTP_400_BAD_REQUEST)
             
-            # Check if there's already a pending payment
+            # Check if there's already a pending Stripe payment
             existing_payment = Payment.objects.filter(
                 order=order,
-                status='pending'
+                status='pending',
+                gateway='stripe'
             ).first()
             
-            if existing_payment:
-                # Try to reuse existing payment if it has a valid link
-                if (existing_payment.gateway_response and 
-                    existing_payment.gateway_response.get('data', {}).get('link')):
-                    return Response({
-                        "payment_link": existing_payment.gateway_response['data']['link'],
-                        "payment_id": str(existing_payment.payment_id),
-                        "tx_ref": str(existing_payment.payment_id),
-                        "order_number": order.order_number,
-                        "amount": str(existing_payment.amount),
-                        "currency": existing_payment.currency
-                    }, status=status.HTTP_200_OK)
+            if existing_payment and existing_payment.gateway_response and existing_payment.gateway_response.get('checkout_url'):
+                return Response({
+                    "checkout_url": existing_payment.gateway_response['checkout_url'],
+                    "payment_id": str(existing_payment.payment_id),
+                    "session_id": existing_payment.gateway_response.get('session_id', ''),
+                    "order_number": order.order_number,
+                    "amount": str(existing_payment.amount),
+                    "currency": existing_payment.currency
+                }, status=status.HTTP_200_OK)
             
-            # Initialize new payment
-            payment_response = FlutterwaveService.initialize_payment(order)
+            # Initialize new Stripe payment
+            payment_response = StripeService.initialize_payment(order)
             
             return Response({
-                "payment_link": payment_response.get('data', {}).get('link'),
+                "checkout_url": payment_response.get('data', {}).get('checkout_url'),
                 "payment_id": payment_response.get('data', {}).get('payment_id'),
-                "tx_ref": payment_response.get('data', {}).get('tx_ref'),
+                "session_id": payment_response.get('data', {}).get('session_id'),
                 "order_number": order.order_number,
                 "amount": str(order.total),
-                "currency": "NGN"
+                "currency": "GBP"
             }, status=status.HTTP_200_OK)
             
         except Exception as e:
@@ -99,7 +96,7 @@ class PaymentView(PaymentInitializeView):
 
 @method_decorator(never_cache, name='dispatch')
 class PaymentVerificationView(APIView):
-    """Verify payment status"""
+    """Verify Stripe payment status"""
     permission_classes = [IsAuthenticated]
     throttle_classes = [PaymentRateThrottle]
     
@@ -119,19 +116,17 @@ class PaymentVerificationView(APIView):
                     "message": "Payment completed successfully"
                 })
             
-            # If payment is pending, try to verify with Flutterwave
-            if payment.is_pending and payment.gateway_transaction_id:
+            # If payment is pending and has a Stripe session, verify with Stripe
+            if payment.is_pending and payment.gateway_reference and payment.gateway == 'stripe':
                 try:
-                    verification_data = FlutterwaveService.verify_payment(
-                        payment.gateway_transaction_id
-                    )
-                    
-                    if (verification_data.get('status') == 'success' and 
-                        verification_data.get('data', {}).get('status') == 'successful'):
-                        
+                    session = StripeService.verify_payment(payment.gateway_reference)
+                    if session and session.payment_status == 'paid':
                         payment.mark_as_successful(
-                            gateway_transaction_id=payment.gateway_transaction_id,
-                            gateway_response=verification_data
+                            gateway_transaction_id=session.payment_intent.id if hasattr(session.payment_intent, 'id') else str(session.payment_intent),
+                            gateway_response={
+                                'session_id': session.id,
+                                'payment_intent': session.payment_intent.id if hasattr(session.payment_intent, 'id') else str(session.payment_intent),
+                            }
                         )
                         
                         return Response({
@@ -140,7 +135,7 @@ class PaymentVerificationView(APIView):
                             "message": "Payment verified and completed successfully"
                         })
                 except Exception as e:
-                    logger.error(f"Payment verification error: {str(e)}")
+                    logger.error(f"Stripe payment verification error: {str(e)}")
             
             # Return current payment status
             return Response({
@@ -151,75 +146,6 @@ class PaymentVerificationView(APIView):
             
         except Exception as e:
             logger.error(f"Payment verification error: {str(e)}")
-            return Response({
-                "error": str(e)
-            }, status=status.HTTP_400_BAD_REQUEST)
-
-@method_decorator(never_cache, name='dispatch')
-class PaymentCallbackView(APIView):
-    """Handle payment callback from Flutterwave"""
-    permission_classes = [IsAuthenticated]
-    
-    def get(self, request):
-        """Handle GET callback from Flutterwave"""
-        try:
-            tx_ref = request.GET.get('tx_ref')
-            transaction_id = request.GET.get('transaction_id')
-            status_param = request.GET.get('status')
-            
-            if not tx_ref:
-                return Response({
-                    "error": "Missing transaction reference"
-                }, status=status.HTTP_400_BAD_REQUEST)
-            
-            try:
-                payment = Payment.objects.get(
-                    payment_id=tx_ref,
-                    order__user=request.user
-                )
-            except Payment.DoesNotExist:
-                return Response({
-                    "error": "Payment not found"
-                }, status=status.HTTP_404_NOT_FOUND)
-            
-            # If payment is already successful, return success
-            if payment.is_successful:
-                return Response({
-                    "status": "successful",
-                    "payment": PaymentSerializer(payment).data,
-                    "redirect_url": f"{settings.FRONTEND_URL}/orders/{payment.order.id}"
-                })
-            
-            # Verify payment with Flutterwave if transaction_id is provided
-            if transaction_id and status_param == 'successful':
-                try:
-                    verification_data = FlutterwaveService.verify_payment(transaction_id)
-                    
-                    if (verification_data.get('status') == 'success' and 
-                        verification_data.get('data', {}).get('status') == 'successful'):
-                        
-                        payment.mark_as_successful(
-                            gateway_transaction_id=transaction_id,
-                            gateway_response=verification_data
-                        )
-                        
-                        return Response({
-                            "status": "successful",
-                            "payment": PaymentSerializer(payment).data,
-                            "redirect_url": f"{settings.FRONTEND_URL}/orders/{payment.order.id}"
-                        })
-                except Exception as e:
-                    logger.error(f"Callback verification error: {str(e)}")
-            
-            # Return current status
-            return Response({
-                "status": payment.status,
-                "payment": PaymentSerializer(payment).data,
-                "redirect_url": f"{settings.FRONTEND_URL}/payment/status/{payment.payment_id}"
-            })
-            
-        except Exception as e:
-            logger.error(f"Payment callback error: {str(e)}")
             return Response({
                 "error": str(e)
             }, status=status.HTTP_400_BAD_REQUEST)
@@ -256,7 +182,7 @@ class PaymentStatusView(APIView):
 
 @method_decorator(never_cache, name='dispatch')
 class PaymentRetryView(APIView):
-    """Retry a failed payment"""
+    """Retry a failed Stripe payment"""
     permission_classes = [IsAuthenticated]
     throttle_classes = [PaymentRateThrottle]
     
@@ -274,13 +200,21 @@ class PaymentRetryView(APIView):
                     "reason": "Maximum retries reached or payment not failed"
                 }, status=status.HTTP_400_BAD_REQUEST)
             
-            # Retry the payment
-            payment_response = FlutterwaveService.retry_failed_payment(payment)
+            if payment.gateway != 'stripe':
+                return Response({
+                    "error": "Only Stripe payments can be retried via this endpoint"
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Increment retry count
+            payment.increment_retry_count()
+            
+            # Re-initialize Stripe payment
+            payment_response = StripeService.initialize_payment(payment.order)
             
             return Response({
-                "payment_link": payment_response.get('data', {}).get('link'),
+                "checkout_url": payment_response.get('data', {}).get('checkout_url'),
                 "payment_id": payment_response.get('data', {}).get('payment_id'),
-                "tx_ref": payment_response.get('data', {}).get('tx_ref'),
+                "session_id": payment_response.get('data', {}).get('session_id'),
                 "retry_count": payment.retry_count
             }, status=status.HTTP_200_OK)
             
@@ -303,72 +237,18 @@ class PaymentListView(generics.ListAPIView):
 
 @method_decorator(csrf_exempt, name='dispatch')
 @method_decorator(never_cache, name='dispatch')
-class FlutterwaveWebhookView(APIView):
-    """Handle Flutterwave webhook notifications with enhanced security"""
-    authentication_classes = []  # Webhooks are anonymous
-    permission_classes = []      # No auth required
-    throttle_classes = [WebhookRateThrottle]
-
-    def post(self, request):
-        try:
-            # Get raw body for signature validation
-            raw_body = request.body.decode('utf-8')
-            
-            # Verify the webhook hash
-            incoming_hash = request.headers.get('verif-hash')
-            if not incoming_hash or incoming_hash != settings.FLW_WEBHOOK_HASH:
-                logger.warning(f"Invalid webhook hash received: {incoming_hash}")
-                return Response({
-                    "error": "Unauthorized"
-                }, status=status.HTTP_401_UNAUTHORIZED)
-
-            # Parse the payload
-            try:
-                data = json.loads(raw_body)
-            except json.JSONDecodeError:
-                logger.error("Invalid JSON in webhook payload")
-                return Response({
-                    "error": "Invalid JSON payload"
-                }, status=status.HTTP_400_BAD_REQUEST)
-
-            logger.info(f"Received Flutterwave webhook: {data.get('tx_ref', 'unknown')} - {data.get('status', 'unknown')}")
-
-            # Process the webhook
-            success = FlutterwaveService.process_webhook(data)
-            
-            if success:
-                # Send order confirmation email if payment was successful
-                tx_ref = data.get('tx_ref')
-                if data.get('status') == 'successful' and tx_ref:
-                    try:
-                        payment = Payment.objects.get(payment_id=tx_ref)
-                        if payment.is_successful:
-                            send_order_confirmation_email(payment.order)
-                    except Payment.DoesNotExist:
-                        logger.error(f"Payment not found for tx_ref: {tx_ref}")
-                
-                return Response({
-                    "message": "Webhook processed successfully"
-                }, status=status.HTTP_200_OK)
-            else:
-                return Response({
-                    "error": "Webhook processing failed"
-                }, status=status.HTTP_400_BAD_REQUEST)
-                
-        except Exception as e:
-            logger.error(f"Webhook processing error: {str(e)}")
-            return Response({
-                "error": "Internal server error"
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-@method_decorator(csrf_exempt, name='dispatch')
-@method_decorator(never_cache, name='dispatch')
 class StripeWebhookView(APIView):
     """Handle Stripe webhook notifications."""
     authentication_classes = []
     permission_classes = []
     throttle_classes = [WebhookRateThrottle]
+
+    @staticmethod
+    def _to_dict(obj):
+        """Convert Stripe object to dict."""
+        if hasattr(obj, 'to_dict'):
+            return obj.to_dict()
+        return obj
 
     def post(self, request):
         payload = request.body
@@ -378,7 +258,8 @@ class StripeWebhookView(APIView):
             success = StripeService.process_webhook(payload, sig_header)
 
             if success:
-                # Send order confirmation email
+                # Send order confirmation email for completed payments
+                # Re-parse event only for email trigger (lightweight)
                 event = None
                 try:
                     import stripe as stripe_module
@@ -389,10 +270,12 @@ class StripeWebhookView(APIView):
                 except Exception:
                     logger.error("Failed to reconstruct Stripe webhook event for email sending")
 
-                if event and event['type'] == 'checkout.session.completed':
-                    session = event['data']['object']
+                # Trigger email for both sync and async payment success
+                if event and event['type'] in ('checkout.session.completed', 'checkout.session.async_payment_succeeded'):
+                    session = self._to_dict(event['data']['object'])
                     payment_id = session.get('metadata', {}).get('payment_id')
-                    if payment_id:
+                    payment_status = session.get('payment_status')
+                    if payment_id and payment_status == 'paid':
                         try:
                             payment = Payment.objects.get(payment_id=payment_id)
                             if payment.is_successful:

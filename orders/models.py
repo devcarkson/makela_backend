@@ -121,9 +121,6 @@ class Order(models.Model):
     ]
     
     PAYMENT_METHODS = [
-        ('flutterwave', 'Flutterwave'),
-        ('paystack', 'Paystack'),
-        ('whatsapp', 'WhatsApp Order'),
         ('stripe', 'Stripe'),
         ('bank_transfer', 'Bank Transfer'),
         ('cash_on_delivery', 'Cash on Delivery'),

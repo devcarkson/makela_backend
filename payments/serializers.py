@@ -55,13 +55,8 @@ class PaymentVerificationSerializer(serializers.Serializer):
         max_length=100,
         help_text="Payment ID to verify"
     )
-    transaction_id = serializers.CharField(
+    session_id = serializers.CharField(
         max_length=200,
         required=False,
-        help_text="Flutterwave transaction ID (optional)"
+        help_text="Stripe Checkout Session ID (optional)"
     )
-
-class PaymentCallbackSerializer(serializers.Serializer):
-    status = serializers.CharField(help_text="Payment status from callback")
-    tx_ref = serializers.CharField(help_text="Transaction reference")
-    transaction_id = serializers.CharField(help_text="Flutterwave transaction ID")

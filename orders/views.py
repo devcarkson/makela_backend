@@ -212,55 +212,7 @@ class CheckoutView(generics.CreateAPIView):
             payment_method = order.payment_method
             
             # Handle different payment methods
-            if payment_method == 'flutterwave':
-                # Initialize Flutterwave payment
-                from payments.services import FlutterwaveService
-                try:
-                    payment_response = FlutterwaveService.initialize_payment(order)
-                    payment_url = payment_response.get('data', {}).get('link')
-                    payment_id = payment_response.get('data', {}).get('payment_id')
-                    
-                    if not payment_url:
-                        return Response(
-                            {"detail": "Payment initialization failed: No payment URL returned."},
-                            status=status.HTTP_400_BAD_REQUEST
-                        )
-                    
-                    return Response(
-                        {
-                            "payment_url": payment_url,
-                            "payment_id": payment_id,
-                            "reference": order.order_number,
-                            "order_id": order.id,
-                            "order": OrderSerializer(order).data,
-                            "status": order.status,
-                            "payment_method": payment_method
-                        },
-                        status=status.HTTP_201_CREATED
-                    )
-                    
-                except Exception as e:
-                    return Response(
-                        {"detail": f"Payment initialization failed: {str(e)}"},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
-            
-            elif payment_method == 'whatsapp':
-                # For WhatsApp orders, just return the order details
-                # The frontend will handle the WhatsApp integration
-                return Response(
-                    {
-                        "order_id": order.id,
-                        "order": OrderSerializer(order).data,
-                        "reference": order.order_number,
-                        "status": order.status,
-                        "payment_method": payment_method,
-                        "message": "Order created successfully. Please complete via WhatsApp."
-                    },
-                    status=status.HTTP_201_CREATED
-                )
-
-            elif payment_method == 'stripe':
+            if payment_method == 'stripe':
                 from payments.services import StripeService
                 try:
                     payment_response = StripeService.initialize_payment(order)

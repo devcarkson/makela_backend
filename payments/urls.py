@@ -3,11 +3,9 @@ from .views import (
     PaymentView, 
     PaymentInitializeView,
     PaymentVerificationView, 
-    PaymentCallbackView,
     PaymentStatusView,
     PaymentRetryView,
     PaymentListView,
-    FlutterwaveWebhookView,
     StripeWebhookView
 )
 
@@ -20,9 +18,6 @@ urlpatterns = [
     path('verify/<str:payment_id>/', PaymentVerificationView.as_view(), name='verify-payment'),
     path('status/<str:payment_id>/', PaymentStatusView.as_view(), name='payment-status'),
     
-    # Payment callback from Flutterwave
-    path('callback/', PaymentCallbackView.as_view(), name='payment-callback'),
-    
     # Payment retry
     path('retry/<str:payment_id>/', PaymentRetryView.as_view(), name='retry-payment'),
     
@@ -30,6 +25,5 @@ urlpatterns = [
     path('history/', PaymentListView.as_view(), name='payment-history'),
     
     # Webhooks
-    path('webhooks/flutterwave/', FlutterwaveWebhookView.as_view(), name='flutterwave-webhook'),
     path('webhooks/stripe/', StripeWebhookView.as_view(), name='stripe-webhook'),
 ]

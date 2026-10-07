@@ -21,8 +21,6 @@ class Payment(models.Model):
     ]
     
     PAYMENT_GATEWAY_CHOICES = [
-        ('flutterwave', 'Flutterwave'),
-        ('paystack', 'Paystack'),
         ('stripe', 'Stripe'),
         ('bank_transfer', 'Bank Transfer'),
     ]
