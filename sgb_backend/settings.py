@@ -50,9 +50,9 @@ ALLOWED_HOSTS = ['*']
 # CORS Settings (Dev)
 # CORS_ALLOW_ALL_ORIGINS = True  # Disable in production! Use whitelist below.
 
-ADMINS = [
-    ('SGB Admin', 'decarkson@gmail.com'),
-]
+# ADMINS = [
+#     ('Makela Admin', 'decarkson@gmail.com'),
+# ]
 
 # Image optimization settings
 IMAGEKIT_DEFAULT_CACHEFILE_STRATEGY = 'imagekit.cachefiles.strategies.JustInTime'
@@ -477,5 +477,5 @@ LOGGING = {
 os.makedirs(os.path.join(BASE_DIR, 'logs'), exist_ok=True)
 
 ADMINS = [
-    ('SGB Admin', 'decarkson@gmail.com'),
+    ('Makela Admin', 'decarkson@gmail.com'),
 ]
