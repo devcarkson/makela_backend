@@ -290,3 +290,118 @@ class StripeWebhookView(APIView):
         except Exception as e:
             logger.error(f"Stripe webhook error: {str(e)}")
             return Response({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@method_decorator(never_cache, name='dispatch')
+class StripeSessionVerifyView(APIView):
+    """Verify Stripe Checkout Session by session_id (public endpoint for payment success page)"""
+    authentication_classes = []
+    permission_classes = []
+    throttle_classes = [AnonRateThrottle]
+
+    @staticmethod
+    def _to_dict(obj):
+        """Convert Stripe object to dict."""
+        if hasattr(obj, 'to_dict'):
+            return obj.to_dict()
+        return obj
+
+    def get(self, request, session_id):
+        try:
+            session = StripeService.verify_payment(session_id)
+            
+            if not session:
+                return Response({
+                    "error": "Session not found"
+                }, status=status.HTTP_404_NOT_FOUND)
+
+            session = self._to_dict(session)
+
+            payment_id = session.get('metadata', {}).get('payment_id')
+            order_id = session.get('metadata', {}).get('order_id')
+            order_number = session.get('metadata', {}).get('order_number')
+
+            if not payment_id:
+                return Response({
+                    "error": "Invalid session metadata"
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Get payment and order info
+            try:
+                payment = Payment.objects.select_related('order').get(payment_id=payment_id)
+            except Payment.DoesNotExist:
+                return Response({
+                    "error": "Payment not found"
+                }, status=status.HTTP_404_NOT_FOUND)
+
+            # If payment is already successful, return success
+            if payment.is_successful:
+                return Response({
+                    "order": {
+                        "id": str(payment.order.id),
+                        "order_number": payment.order.order_number,
+                        "status": payment.order.status,
+                        "total": str(payment.order.total),
+                        "created_at": payment.order.created_at.isoformat(),
+                    },
+                    "payment": {
+                        "payment_id": str(payment.payment_id),
+                        "status": payment.status,
+                        "amount": str(payment.amount),
+                        "currency": payment.currency,
+                    }
+                })
+
+            # If session is paid but payment not yet marked, update it
+            payment_status = session.payment_status if hasattr(session, 'payment_status') else session.get('payment_status')
+            if payment_status == 'paid':
+                payment_intent = session.payment_intent if hasattr(session, 'payment_intent') else session.get('payment_intent')
+                pi_id = payment_intent.id if hasattr(payment_intent, 'id') else (payment_intent if isinstance(payment_intent, str) else payment_intent.get('id') if payment_intent else None)
+                
+                payment.mark_as_successful(
+                    gateway_transaction_id=pi_id,
+                    gateway_response={
+                        'session_id': session.id,
+                        'payment_intent': pi_id,
+                        'event_type': 'checkout.session.completed',
+                    }
+                )
+
+                return Response({
+                    "order": {
+                        "id": str(payment.order.id),
+                        "order_number": payment.order.order_number,
+                        "status": payment.order.status,
+                        "total": str(payment.order.total),
+                        "created_at": payment.order.created_at.isoformat(),
+                    },
+                    "payment": {
+                        "payment_id": str(payment.payment_id),
+                        "status": payment.status,
+                        "amount": str(payment.amount),
+                        "currency": payment.currency,
+                    }
+                })
+
+            # Return current status if not paid
+            return Response({
+                "order": {
+                    "id": str(payment.order.id),
+                    "order_number": payment.order.order_number,
+                    "status": payment.order.status,
+                    "total": str(payment.order.total),
+                    "created_at": payment.order.created_at.isoformat(),
+                },
+                "payment": {
+                    "payment_id": str(payment.payment_id),
+                    "status": payment.status,
+                    "amount": str(payment.amount),
+                    "currency": payment.currency,
+                }
+            })
+
+        except Exception as e:
+            logger.error(f"Stripe session verification error: {str(e)}")
+            return Response({
+                "error": "Verification failed"
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

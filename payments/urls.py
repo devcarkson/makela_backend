@@ -6,7 +6,8 @@ from .views import (
     PaymentStatusView,
     PaymentRetryView,
     PaymentListView,
-    StripeWebhookView
+    StripeWebhookView,
+    StripeSessionVerifyView
 )
 
 urlpatterns = [
@@ -16,6 +17,7 @@ urlpatterns = [
     
     # Payment verification and status
     path('verify/<str:payment_id>/', PaymentVerificationView.as_view(), name='verify-payment'),
+    path('verify-session/<str:session_id>/', StripeSessionVerifyView.as_view(), name='verify-session'),
     path('status/<str:payment_id>/', PaymentStatusView.as_view(), name='payment-status'),
     
     # Payment retry
