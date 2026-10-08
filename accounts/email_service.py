@@ -18,7 +18,7 @@ def get_brand_context(overrides: Optional[Dict[str, Any]] = None) -> Dict[str, A
     """Get base brand context with optional overrides"""
     from django.conf import settings
     context = BRAND_CONFIG.copy()
-    context['logo_url'] = f"{getattr(settings, 'FRONTEND_URL', 'https://makelacosmetic.uk')}/logo.webp"
+    context['logo_url'] = f"{getattr(settings, 'FRONTEND_URL', 'https://makelacosmetic.uk')}/EmailLogo.png"
     if overrides:
         context.update(overrides)
     return context
