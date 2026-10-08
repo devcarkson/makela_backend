@@ -18,6 +18,13 @@ def send_order_confirmation_email(order):
         EmailService.send_order_confirmation_email(order)
         logger.info(f"Order confirmation email sent for order {order.order_number}")
         
+        # Send notification to admin
+        try:
+            EmailService.send_new_order_admin_notification(order)
+            logger.info(f"New order admin notification sent for order {order.order_number}")
+        except Exception as admin_e:
+            logger.error(f"Failed to send admin notification for order {order.order_number}: {str(admin_e)}")
+        
         # Create notification for order placement
         Notification.objects.create(
             user=order.user,

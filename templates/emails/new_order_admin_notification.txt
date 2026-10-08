@@ -1,0 +1,30 @@
+A New Order Has Been Placed - {{ site_name }}
+
+Customer: {{ user.first_name }} {{ user.last_name }} ({{ user.email }})
+Order #: {{ order.order_number }}
+Total: £{{ order.total }}
+Date: {{ order.created_at|date:"F d, Y g:i A" }}
+Payment Method: {{ order.get_payment_method_display }}
+Payment Status: {% if order.payment_status %}Paid{% else %}Pending{% endif %}
+
+Shipping Address:
+{{ order.shipping_address }}
+{{ order.shipping_city }}, {{ order.shipping_state }} {{ order.shipping_zip_code }}
+{{ order.shipping_country }}
+
+Order Items:
+{% for item in order_items %}
+- {{ item.product_name }}{% if item.variant_name %} ({{ item.variant_name }}){% endif %} - Qty: {{ item.quantity }} - £{{ item.price }} each
+{% endfor %}
+
+Subtotal: £{{ order.subtotal }}
+Shipping: £{{ order.shipping_fee }}
+Tax: £{{ order.tax }}
+Total: £{{ order.total }}
+
+Please log in to your admin dashboard to review and process this order.
+({{ frontend_url }}/admin)
+
+---
+{{ site_name }}
+{{ frontend_url }}

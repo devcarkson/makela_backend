@@ -10,8 +10,8 @@ logger = logging.getLogger(__name__)
 # Brand configuration
 BRAND_CONFIG = {
     'site_name': 'Makela',
-    'primary_color': '#7C3AED',      # Purple - matches frontend
-    'primary_color_dark': '#6D28D9', # Darker purple for gradients
+    'primary_color': '#B14360',      # hsl(344 45% 48%) - deep rose
+    'primary_color_dark': '#8C354C', # Darker shade for gradients
 }
 
 def get_brand_context(overrides: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -182,4 +182,25 @@ class EmailService:
             template_name='emails/contact_form_notification.html',
             context=context,
             recipient_list=admin_emails
+        )
+    
+    @staticmethod
+    def send_new_order_admin_notification(order) -> bool:
+        """Send new order notification to admins"""
+        context = get_brand_context({
+            'order': order,
+            'user': order.user,
+            'frontend_url': settings.FRONTEND_URL,
+            'order_items': order.items.all(),
+        })
+        
+        # Get admin emails
+        admin_emails = [admin[1] for admin in settings.ADMINS]
+        
+        return EmailService.send_email(
+            subject=f"New Order #{order.order_number} - {BRAND_CONFIG['site_name']}",
+            template_name='emails/new_order_admin_notification.html',
+            context=context,
+            recipient_list=admin_emails,
+            plain_template_name='emails/new_order_admin_notification.txt'
         )
