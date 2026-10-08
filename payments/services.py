@@ -99,6 +99,17 @@ class StripeService:
             payment.gateway_response = gateway_response
             payment.save()
 
+            # Clear user's cart immediately (backup stored in payment for potential restore on failure)
+            try:
+                cart = order.user.cart
+                backup = cart.clear_for_checkout()
+                # Store backup in payment gateway_response for restoration on failure
+                payment.gateway_response['cart_backup'] = backup
+                payment.save(update_fields=['gateway_response'])
+                logger.info(f"Cleared cart for user {order.user.email} during payment initialization for order {order.order_number}")
+            except Exception as e:
+                logger.error(f"Error clearing cart for user {order.user.email}: {str(e)}")
+
             logger.info(f"Stripe checkout session created for order {order.order_number}: {checkout_session.id}")
 
             return {
@@ -267,7 +278,11 @@ class StripeService:
             logger.info(f"Payment {payment_id} already successful, skipping failure")
             return True
 
-        error_msg = session.get('payment_intent', {}).get('last_payment_error', {}).get('message', 'Async payment failed')
+        payment_intent = session.get('payment_intent')
+        if isinstance(payment_intent, dict):
+            error_msg = payment_intent.get('last_payment_error', {}).get('message', 'Async payment failed')
+        else:
+            error_msg = 'Async payment failed'
         payment.mark_as_failed(
             gateway_response={'session_id': session_id, 'event_type': event['type']},
             error_message=error_msg

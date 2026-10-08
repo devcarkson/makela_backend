@@ -45,6 +45,52 @@ class Cart(models.Model):
         cart, created = cls.objects.get_or_create(user=user)
         return cart
 
+    def clear_for_checkout(self):
+        """Clear cart items for checkout and return backup data.
+        Returns list of dicts representing the backed up items.
+        """
+        items = list(self.items.select_related('product', 'variant').all())
+        backup = []
+        for item in items:
+            backup.append({
+                'product_id': item.product_id,
+                'variant_id': item.variant_id,
+                'quantity': item.quantity,
+                'size_name': item.size_name,
+                'color_name': item.color_name,
+            })
+        # Actually delete items
+        self.items.all().delete()
+        return backup
+
+    def restore_from_backup_data(self, backup):
+        """Restore cart items from provided backup data after failed payment."""
+        if not backup:
+            return 0
+        
+        restored = 0
+        for item_data in backup:
+            try:
+                CartItem.objects.create(
+                    cart=self,
+                    product_id=item_data['product_id'],
+                    variant_id=item_data['variant_id'],
+                    quantity=item_data['quantity'],
+                    size_name=item_data['size_name'],
+                    color_name=item_data['color_name'],
+                )
+                restored += 1
+            except Exception:
+                pass  # Skip failed items
+        
+        return restored
+
+    def clear_backup(self):
+        """Clear the backup without restoring (called on successful payment).
+        This is a no-op since backup is now stored in Payment model.
+        """
+        pass
+
 
 class CartItem(models.Model):
     """

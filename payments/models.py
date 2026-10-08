@@ -144,8 +144,10 @@ class Payment(models.Model):
             
             self.order.save()
             
-            # Clear the cart after successful payment
-            self._clear_user_cart()
+            # Clear the cart backup from payment's gateway_response
+            if self.gateway_response and 'cart_backup' in self.gateway_response:
+                del self.gateway_response['cart_backup']
+                self.save(update_fields=['gateway_response'])
             
             logger.info(f"Payment {self.payment_id} marked as successful for order {self.order.order_number}")
 
@@ -163,8 +165,13 @@ class Payment(models.Model):
         )
     
     def mark_as_failed(self, gateway_response=None, error_message=None):
-        """Mark payment as failed"""
+        """Mark payment as failed and restore cart from backup stored in payment"""
         self.status = 'failed'
+        
+        # Preserve cart_backup from existing gateway_response
+        cart_backup = None
+        if self.gateway_response and 'cart_backup' in self.gateway_response:
+            cart_backup = self.gateway_response['cart_backup']
         
         if gateway_response:
             self.gateway_response = gateway_response
@@ -172,7 +179,24 @@ class Payment(models.Model):
         if error_message:
             self.last_error = error_message
         
+        # Restore cart_backup to gateway_response
+        if cart_backup:
+            if self.gateway_response is None:
+                self.gateway_response = {}
+            self.gateway_response['cart_backup'] = cart_backup
+        
         self.save()
+        
+        # Restore cart from backup stored in payment's gateway_response
+        try:
+            cart = self.order.user.cart
+            if cart_backup:
+                restored = cart.restore_from_backup_data(cart_backup)
+                if restored > 0:
+                    logger.info(f"Restored {restored} items to cart for user {self.order.user.email} after failed payment")
+        except Exception as e:
+            logger.error(f"Error restoring cart for user {self.order.user.email}: {str(e)}")
+        
         logger.warning(f"Payment {self.payment_id} marked as failed for order {self.order.order_number}")
 
         # Realtime push for payment failure
@@ -194,13 +218,13 @@ class Payment(models.Model):
         self.save()
     
     def _clear_user_cart(self):
-        """Clear user's cart after successful payment"""
+        """Clear user's cart backup after successful payment (cart already cleared at checkout init)"""
         try:
             cart = self.order.user.cart
-            deleted_count, _ = cart.items.all().delete()
-            logger.info(f"Cleared {deleted_count} items from cart for user {self.order.user.email}")
+            cart.clear_backup()
+            logger.info(f"Cleared cart backup for user {self.order.user.email} after successful payment")
         except Exception as e:
-            logger.error(f"Error clearing cart for user {self.order.user.email}: {str(e)}")
+            logger.error(f"Error clearing cart backup for user {self.order.user.email}: {str(e)}")
     
     @property
     def is_successful(self):
