@@ -70,6 +70,7 @@ class Product(models.Model):
     description = models.TextField()
     price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True, help_text="Base price (used if no variant price set)")
     discount_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+    weight = models.DecimalField(max_digits=6, decimal_places=2, default=0, help_text="Weight in kg")
     stock = models.PositiveIntegerField(default=0, help_text="Total stock across all variants (auto-calculated)")
     has_variants = models.BooleanField(default=False, help_text="Whether this product has size/color variants")
     is_featured = models.BooleanField(default=False)

@@ -1,9 +1,10 @@
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from decimal import Decimal, InvalidOperation
 from django.shortcuts import get_object_or_404
 from django.db import transaction
-from .models import Cart, CartItem, Order
+from .models import Cart, CartItem, Order, ShippingCity
 from .serializers import (
     CartSerializer,
     CartItemSerializer,
@@ -327,3 +328,51 @@ class OrderStatusUpdateView(generics.UpdateAPIView):
                 {"detail": str(e)},
                 status=status.HTTP_400_BAD_REQUEST
             )
+
+
+class ShippingFeeView(APIView):
+    """
+    Calculate the shipping fee for a given city and country.
+    Query params: city, country, subtotal (optional, minor units).
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        import logging
+        logger = logging.getLogger(__name__)
+
+        city = (request.query_params.get('city') or '').strip()
+        country = (request.query_params.get('country') or '').strip().upper()
+        subtotal = request.query_params.get('subtotal')
+
+        if country != 'GB':
+            return Response({'detail': 'Only United Kingdom residents can purchase from this website.'}, status=400)
+
+        # Calculate total weight from cart if authenticated
+        total_weight = Decimal('0')
+        if request.user.is_authenticated:
+            try:
+                cart = request.user.cart
+                for item in cart.items.all():
+                    item_weight = Decimal(str(item.product.weight or 0))
+                    total_weight += item_weight * Decimal(str(item.quantity))
+            except Exception:
+                total_weight = Decimal('0')
+
+        weight = total_weight
+        if weight <= Decimal('1'):
+            fee = Decimal('4.99')
+        elif Decimal('1') < weight < Decimal('2'):
+            fee = Decimal('5.99')
+        elif weight == Decimal('2'):
+            fee = Decimal('6.99')
+        elif Decimal('2') < weight <= Decimal('5'):
+            fee = Decimal('8.99')
+        elif Decimal('5') < weight <= Decimal('10'):
+            fee = Decimal('9.99')
+        elif Decimal('10') < weight <= Decimal('20'):
+            fee = Decimal('14.99')
+        else:
+            fee = Decimal('14.99')
+
+        return Response({'shipping_fee': str(fee)})

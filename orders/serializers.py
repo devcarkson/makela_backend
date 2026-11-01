@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Cart, CartItem, Order, OrderItem
+from .models import Cart, CartItem, Order, OrderItem, ShippingCity
 from products.models import Product, ProductVariant
 from products.serializers import ProductSerializer, ProductVariantSerializer
 from accounts.serializers import UserSerializer
@@ -213,11 +213,10 @@ class CheckoutSerializer(serializers.Serializer):
         help_text="Whether to save shipping info for future orders"
     )
 
-    def validate_shipping_state(self, value):
-        """Validate shipping state/region based on the selected country"""
-        # Get the country from the request data (not yet in validated_data at field validation time)
-        country = self.initial_data.get('shipping_country', '')
-        return validate_shipping_state(value, country)
+    def validate_shipping_country(self, value):
+        if str(value).upper() != 'GB':
+            raise serializers.ValidationError("Only United Kingdom residents can purchase from this website.")
+        return value.upper()
 
     def validate(self, data):
         request = self.context.get('request')
@@ -232,8 +231,9 @@ class CheckoutSerializer(serializers.Serializer):
 
     def _calculate_shipping_fee(self, subtotal, state, city):
         """Calculate shipping fee based on location and order value.
-
-        Supports UK, Ireland, and other European countries.
+        
+        Shipping fee is tied to cities via the ShippingCity model.
+        Falls back to flat rate if city has no specific fee configured.
         """
         import logging
         logger = logging.getLogger(__name__)
@@ -241,24 +241,42 @@ class CheckoutSerializer(serializers.Serializer):
         country = self.context.get('request').data.get('shipping_country', '')
         state = self.context.get('request').data.get('shipping_state', '')
         city = self.context.get('request').data.get('shipping_city', '')
+        
+        # Only UK residents can buy
+        if str(country).upper() != 'GB':
+            raise serializers.ValidationError({"shipping_country": "Only United Kingdom residents can purchase from this website."})
 
-        # Free shipping threshold: £100 for UK/EU orders
-        free_shipping_threshold = Decimal('10000')
-        if subtotal >= free_shipping_threshold:
-            logger.info(f"Free shipping applied - subtotal {subtotal} >= {free_shipping_threshold}")
-            return Decimal('0')
+        # Calculate total weight
+        request = self.context.get('request')
+        cart = request.user.cart
+        total_weight = Decimal('0')
+        for item in cart.items.all():
+            item_weight = Decimal(str(item.product.weight or 0))
+            total_weight += item_weight * Decimal(str(item.quantity))
 
-        # UK / Ireland specific shipping calculation
-        if country in ('GB', 'IE'):
-            # UK standard shipping: £5.99, Express: £12.99
-            # Ireland shipping: £9.99
-            if country == 'GB':
-                return Decimal('5.99')
-            else:
-                return Decimal('9.99')
-
-        # EU shipping (flat rate)
-        return Decimal('9.99')
+        # Weight-based shipping for UK
+        # 1 kg, small parcel £4.99
+        # 1–2 kg, small parcel £5.99
+        # 2 kg, medium parcel £6.99
+        # 2–5 kg, medium parcel £8.99
+        # 5–10 kg, medium parcel £9.99
+        # 10–20 kg, medium parcel £14.99
+        weight = total_weight
+        if weight <= Decimal('1'):
+            return Decimal('4.99')
+        elif Decimal('1') < weight < Decimal('2'):
+            return Decimal('5.99')
+        elif weight == Decimal('2'):
+            return Decimal('6.99')
+        elif Decimal('2') < weight <= Decimal('5'):
+            return Decimal('8.99')
+        elif Decimal('5') < weight <= Decimal('10'):
+            return Decimal('9.99')
+        elif Decimal('10') < weight <= Decimal('20'):
+            return Decimal('14.99')
+        else:
+            # For weights over 20kg, use highest tier
+            return Decimal('14.99')
 
     def create(self, validated_data):
         request = self.context.get('request')

@@ -398,6 +398,33 @@ class OrderItem(models.Model):
         return Decimal(self.price) * Decimal(self.quantity)
 
 
+class ShippingCity(models.Model):
+    """
+    Represents a city with an associated shipping fee.
+    Used to tie shipping costs to specific cities.
+    """
+    name = models.CharField(max_length=100, verbose_name="City Name")
+    country = models.CharField(max_length=2, default='GB', verbose_name="Country Code", help_text="ISO 3166-1 alpha-2 country code")
+    shipping_fee = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        verbose_name="Shipping Fee",
+        help_text="Shipping fee for this city"
+    )
+    is_active = models.BooleanField(default=True, verbose_name="Is Active")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Created At")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Updated At")
+
+    class Meta:
+        verbose_name = "Shipping City"
+        verbose_name_plural = "Shipping Cities"
+        ordering = ['country', 'name']
+        unique_together = [('name', 'country')]
+
+    def __str__(self):
+        return f"{self.name}, {self.country} - £{self.shipping_fee}"
+
+
 # Signal to automatically create cart when user is created
 @receiver(post_save, sender=User)
 def create_user_cart(sender, instance, created, **kwargs):

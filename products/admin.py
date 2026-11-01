@@ -108,7 +108,7 @@ class CategoryAdmin(admin.ModelAdmin):
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
     form = ProductAdminForm
-    list_display = ['name', 'category', 'price', 'stock', 'has_variants', 'is_active', 'created_at']
+    list_display = ['name', 'category', 'price', 'weight', 'stock', 'has_variants', 'is_active', 'created_at']
     list_filter = ['category', 'is_active', 'has_variants', 'created_at']
     search_fields = ['name', 'description']
     prepopulated_fields = {'slug': ('name',)}
@@ -126,8 +126,8 @@ class ProductAdmin(admin.ModelAdmin):
         ('Pricing', {
             'fields': ('price', 'discount_price')
         }),
-        ('Inventory', {
-            'fields': ('stock', 'total_stock', 'is_active')
+        ('Shipping & Inventory', {
+            'fields': ('weight', 'stock', 'total_stock', 'is_active')
         }),
         ('Metadata', {
             'fields': ('created_at', 'updated_at'),
